@@ -82,16 +82,17 @@ void print_mac_hdr(struct ethhdr *eth)
 
 }
 
-void handler_add_config (void)
+int handler_add_config (void)
 {
         hook.type = htons(ETH_P_ALL);
         hook.func = (void *)hook_func;
-        hook.dev = NULL;
+        hook.dev = dev_eth;
         dev_add_pack(&hook);
-        printk(" Protocol adicionado!!!!\n");
+        printk("VRFM Protocol registered.\n");
+        return 0;
 
 }
-void net_init(void)
+int net_init(void)
 {
     int err=0;
     printk(KERN_INFO "netif is : %s\n", device);
@@ -99,21 +100,22 @@ void net_init(void)
     if (!dev_eth)
     {
         printk("dev not found\n");
+        return -1;
     }   
 
-    handler_add_config();
+    err=handler_add_config();
 
 
   
     if (err) {
             printk (KERN_ERR "Could not register hook\n");
+            return -1;
     }
-    
+    return 0;
 
 }
 void net_shutdown(void)
 {
     dev_put(dev_eth);
     dev_remove_pack(&hook);
-
 }

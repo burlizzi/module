@@ -4,7 +4,6 @@
 #include <linux/fs.h>    
 #include <linux/device.h>
 #include <linux/cdev.h>
-#include <linux/mm.h>
 #include <linux/mutex.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
@@ -20,7 +19,6 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Luca Burlizzi");
 MODULE_SOFTDEP("e1000e");
 
-static DEFINE_MUTEX(mmap_device_mutex);
 
 
 
@@ -51,7 +49,7 @@ static ssize_t device_file_read(
     , loff_t *position)
 {
     printk( KERN_NOTICE "vrfm: Device file is read at offset = %i, read bytes count = %u\n"
-        , test1()
+        , (int)*position
         , (unsigned int)count );
 
     if( *position >= g_s_Hello_World_size )
@@ -116,104 +114,6 @@ ssize_t complete_write(struct file *filp,const char __user *buf,size_t count,lof
 
 
 
-struct mmap_info {
-	char *data;
-	int reference;
-};
-
-
-int mmap_open(struct inode *inode, struct file *filp)
-{
-	struct mmap_info *info = NULL;
-
-	if (!mutex_trylock(&mmap_device_mutex)) {
-		printk(KERN_WARNING
-		       "Another process is accessing the device\n");
-		return -EBUSY;
-	}
-
-	info = kmalloc(sizeof(struct mmap_info), GFP_KERNEL);
-	info->data = (char *)get_zeroed_page(GFP_KERNEL);
-	memcpy(info->data, "Hello from kernel this is file: ", 32);
-	memcpy(info->data + 32, filp->f_path.dentry->d_name.name,
-	       strlen(filp->f_path.dentry->d_name.name));
-	/* assign this info struct to the file */
-	filp->private_data = info;    
-    printk( "mmap open\n");
-    return 0;
-}
-
-void mmap_open1(struct vm_area_struct *vma)
-{
-    //printk("mmap1 enter %x\n", vma);
-    //printk("mmap1 enter %x\n", vma->vm_private_data);
-	struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
-	info->reference++;
-}
-
-
-
-void mmap_close(struct vm_area_struct *vma)
-{
-	struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
-	info->reference--;
-}
-
-
-static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
-{
-	struct page *page;
-	struct mmap_info *info;
-
-	info = (struct mmap_info *)vma->vm_private_data;
-	if (!info->data) {
-		printk("No data\n");
-		return 0;
-	}
-
-	page = virt_to_page(info->data);
-
-	get_page(page);
-	vmf->page = page;
-
-	return 0;
-}
-
-struct vm_operations_struct mmap_vm_ops = {
-	.open = mmap_open1,
-	.close = mmap_close,
-	.fault = mmap_fault,
-};
-
-
-int memory_map (struct file * f, struct vm_area_struct * vma)
-{
-    printk("mmap1 enter\n");
-    vma->vm_ops = &mmap_vm_ops;
-    printk("mmap1 enter\n");
-	vma->vm_flags |= VM_DONTEXPAND | VM_DONTDUMP;
-    printk("mmap1 enter\n");
-	vma->vm_private_data = f->private_data;
-    //printk("mmap1 enter %x\n", vma);
-	mmap_open1(vma);    
-    printk("mmap1 \n");
-    return 0;
-}
-
-
-int mmapfop_close(struct inode *inode, struct file *filp)
-{
-	struct mmap_info *info = filp->private_data;
-
-	free_page((unsigned long)info->data);
-	kfree(info);
-	filp->private_data = NULL;
-
-	mutex_unlock(&mmap_device_mutex);
-
-	return 0;
-}
-
 
 /*===============================================================================================*/
 static struct file_operations vrfm_driver_fops = 
@@ -251,9 +151,12 @@ static int vrfm_driver_init(void)
   
 
    struct device *pDev;
-    mutex_init(&mmap_device_mutex);
-   net_init();
+   if (net_init())
+        return -1;
+   if (mmap_ops_init())
+        return -1;
 
+    
   // Register character device
   majorNum = register_chrdev(0, xstr(MODULE_NAME), &vrfm_driver_fops);
   if (majorNum < 0) {

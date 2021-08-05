@@ -15,13 +15,23 @@ module: $(BUILD_DIR_MAKEFILE)
 	KCPPFLAGS="-DDEVICE_NAME=$(DEVICE_NAME) -DMODULE_NAME=$(MODULE_NAME)"  	make -C $(BUILD_DIR) M=$(MOD_OUTPUT_DIR) src=$(PWD)   modules
 
 
-$(BUILD_DIR_MAKEFILE): $(BUILD_DIR)
-	touch "$@"
+$(BUILD_DIR):
+	$(warning kernel header source not found, install with )
+	$(warning sudo apt install linux-headers-$(shell uname -r) #ubuntu)
+	$(warning sudo zypper install kernel-devel #suse)
+	$(error stop)
+	
+
+
+$(BUILD_DIR_MAKEFILE): $(BUILD_DIR) $(MOD_OUTPUT_DIR)
+	install -D  Makefile "$@"
 
 all: module
 
 clean:
 	KCPPFLAGS="-DDEVICE_NAME=$(DEVICE_NAME) -DMODULE_NAME=$(MODULE_NAME)" make -C $(BUILD_DIR) M=$(MOD_OUTPUT_DIR) src=$(PWD) clean
+	rm $(BUILD_DIR_MAKEFILE)
+
 
 install: 
 	KCPPFLAGS="-DDEVICE_NAME=$(DEVICE_NAME) -DMODULE_NAME=$(MODULE_NAME)" make -C $(BUILD_DIR)  M=$(MOD_OUTPUT_DIR) src=$(PWD)  modules_install
