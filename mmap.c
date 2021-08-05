@@ -44,6 +44,7 @@ void mmap_open1(struct vm_area_struct *vma)
 void mmap_close(struct vm_area_struct *vma)
 {
 	struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
+    printk("after:%s\n",info->data);
 	info->reference--;
 }
 
@@ -52,7 +53,7 @@ static unsigned int mmap_fault( struct vm_fault *vmf)
 {
 	struct page *page;
 	struct mmap_info *info;
-    printk("mmap_fault\n");
+    printk("mmap_fault gfp_mask:%d pgoff:%ld\n",vmf->gfp_mask,vmf->pgoff);
 	info = (struct mmap_info *)vmf->vma->vm_private_data;
 	if (!info->data) {
 		printk("No data\n");
@@ -78,7 +79,9 @@ struct vm_operations_struct mmap_vm_ops = {
 
 int mmapfop_close(struct inode *inode, struct file *filp)
 {
+
 	struct mmap_info *info = filp->private_data;
+    printk("mmapfop_close\n");
 
 	free_page((unsigned long)info->data);
 	kfree(info);

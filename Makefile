@@ -8,7 +8,7 @@ BUILD_DIR_MAKEFILE ?= $(PWD)/bin/Makefile
 
 
 obj-m += $(MODULE_NAME).o 
- $(MODULE_NAME)-y += main.o  mmap.o protocol.o net.o
+ $(MODULE_NAME)-y += chdev.o main.o  mmap.o protocol.o net.o 
 
 
 module: $(BUILD_DIR_MAKEFILE)
