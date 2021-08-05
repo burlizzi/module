@@ -145,6 +145,8 @@ int mmap_open(struct inode *inode, struct file *filp)
 
 void mmap_open1(struct vm_area_struct *vma)
 {
+    //printk("mmap1 enter %x\n", vma);
+    //printk("mmap1 enter %x\n", vma->vm_private_data);
 	struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
 	info->reference++;
 }
@@ -191,8 +193,8 @@ int memory_map (struct file * f, struct vm_area_struct * vma)
     printk("mmap1 enter\n");
 	vma->vm_flags |= VM_DONTEXPAND | VM_DONTDUMP;
     printk("mmap1 enter\n");
-	vma->vm_private_data = "ciao";
-    printk("mmap1 enter\n");
+	vma->vm_private_data = f->private_data;
+    //printk("mmap1 enter %x\n", vma);
 	mmap_open1(vma);    
     printk("mmap1 \n");
     return 0;
