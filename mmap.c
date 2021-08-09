@@ -1,5 +1,7 @@
 #include <linux/mm.h>
 #include <linux/slab.h>
+#include <linux/fs.h>
+#include <linux/version.h>
 #include "mmap.h"
 
 static DEFINE_MUTEX(mmap_device_mutex);
@@ -48,13 +50,22 @@ void mmap_close(struct vm_area_struct *vma)
 	info->reference--;
 }
 
-
+#if LINUX_VERSION_CODE > KERNEL_VERSION(4,1,39)
 static unsigned int mmap_fault( struct vm_fault *vmf)
 {
 	struct page *page;
 	struct mmap_info *info;
-    printk("mmap_fault gfp_mask:%d pgoff:%ld\n",vmf->gfp_mask,vmf->pgoff);
-	info = (struct mmap_info *)vmf->vma->vm_private_data;
+	struct vm_area_struct *vma=vmf->vma;
+    printk("mmap_fault gfp_mask:%x pgoff:%ld\n",vmf->gfp_mask,vmf->pgoff);
+#else
+
+static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
+{
+	struct page *page;
+	struct mmap_info *info;
+    printk("mmap_fault flags:%x pgoff:%ld\n",vmf->flags,vmf->pgoff);
+#endif
+	info = (struct mmap_info *)vma->vm_private_data;
 	if (!info->data) {
 		printk("No data\n");
 		return 0;
