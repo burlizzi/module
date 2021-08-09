@@ -17,14 +17,16 @@ int main (int argc, char **argv)
         return -1;
     }
 
-    address = mmap (NULL, PAGE_SIZE*2, PROT_READ | PROT_WRITE, MAP_SHARED, configfd, 0);
+    address = mmap (NULL, PAGE_SIZE*2, PROT_READ | PROT_WRITE, MAP_PRIVATE, configfd, 0);
     if (address == MAP_FAILED)
     {
         perror ("mmap operation failed");
         return -1;
     }
 
+    memcpy (address + 11, "*user*", 6);
     printf ("Initial message: %s\n", address);
+    memcpy (address + 11, "*user*", 6);
     memcpy (address + 5011, "*user*", 6);
     printf ("Changed message: %s\n", address);
     close (configfd);

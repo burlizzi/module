@@ -1,10 +1,7 @@
 #include "net.h"
-#include <linux/version.h>
 #include <linux/netdevice.h>
 #include <linux/moduleparam.h>
 
-#include <linux/netfilter.h>
-#include <linux/netfilter_ipv4.h>
 unsigned char dest[ETH_ALEN] = {0xff,0xff,0xff,0xff,0xff,0xff}; //broadcast
 
 struct net_device* dev_eth;

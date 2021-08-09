@@ -6,9 +6,13 @@ PWD = $(shell pwd)
 MOD_OUTPUT_DIR =$(PWD)/bin
 BUILD_DIR_MAKEFILE ?= $(PWD)/bin/Makefile
 
+all: module
+
 
 obj-m += $(MODULE_NAME).o 
- $(MODULE_NAME)-y += chdev.o main.o  mmap.o protocol.o net.o 
+ $(MODULE_NAME)-y += chdev.o main.o  mmap.o net.o protocol.o
+
+
 
 
 module: $(BUILD_DIR_MAKEFILE)
@@ -22,11 +26,18 @@ $(BUILD_DIR):
 	$(error stop)
 	
 
-
+$(MOD_OUTPUT_DIR):
+	mkdir "$@"
 $(BUILD_DIR_MAKEFILE): $(BUILD_DIR) $(MOD_OUTPUT_DIR)
 	install -D  Makefile "$@"
 
-all: module
+$(MOD_OUTPUT_DIR)/protocol.o:
+	g++ -c protocol.cpp -o $@
+
+
+
+
+default: module
 
 clean:
 	KCPPFLAGS="-DDEVICE_NAME=$(DEVICE_NAME) -DMODULE_NAME=$(MODULE_NAME)" make -C $(BUILD_DIR) M=$(MOD_OUTPUT_DIR) src=$(PWD) clean

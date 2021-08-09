@@ -1,12 +1,7 @@
-#include <linux/init.h>       /* module_init, module_exit */
-#include <linux/module.h>     /* version info, MODULE_LICENSE, MODULE_AUTHOR, printk() */
 #include <linux/uaccess.h>  
 #include <linux/fs.h>    
 #include <linux/device.h>
 #include <linux/cdev.h>
-#include <linux/mutex.h>
-#include <linux/kernel.h>
-#include <linux/slab.h>
 
 
 
