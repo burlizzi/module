@@ -6,7 +6,10 @@ PWD = $(shell pwd)
 MOD_OUTPUT_DIR =$(PWD)/bin
 BUILD_DIR_MAKEFILE ?= $(PWD)/bin/Makefile
 
-all: module
+all: module 
+
+#$(MOD_OUTPUT_DIR)/protocol.o: protocol.cpp
+#	g++ -c protocol.cpp -o $@
 
 
 obj-m += $(MODULE_NAME).o 
@@ -15,7 +18,7 @@ obj-m += $(MODULE_NAME).o
 
 
 
-module: $(BUILD_DIR_MAKEFILE)
+module: $(BUILD_DIR_MAKEFILE) 
 	KCPPFLAGS="-DDEVICE_NAME=$(DEVICE_NAME) -DMODULE_NAME=$(MODULE_NAME)"  	make -C $(BUILD_DIR) M=$(MOD_OUTPUT_DIR) src=$(PWD)   modules
 
 
@@ -28,11 +31,10 @@ $(BUILD_DIR):
 
 $(MOD_OUTPUT_DIR):
 	mkdir "$@"
+
 $(BUILD_DIR_MAKEFILE): $(BUILD_DIR) $(MOD_OUTPUT_DIR)
 	install -D  Makefile "$@"
 
-$(MOD_OUTPUT_DIR)/protocol.o:
-	g++ -c protocol.cpp -o $@
 
 
 
@@ -46,7 +48,7 @@ clean:
 
 install: 
 	KCPPFLAGS="-DDEVICE_NAME=$(DEVICE_NAME) -DMODULE_NAME=$(MODULE_NAME)" make -C $(BUILD_DIR)  M=$(MOD_OUTPUT_DIR) src=$(PWD)  modules_install
-	#insmod $(MODULE_NAME).ko
+	insmod $(MOD_OUTPUT_DIR)/$(MODULE_NAME).ko
 
 uninstall:
 	rmmod $(MODULE_NAME)

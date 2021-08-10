@@ -1,8 +1,10 @@
 #include <linux/mm.h>
+#include <linux/mm_types.h>
 #include <linux/slab.h>
 #include <linux/fs.h>
 #include <linux/version.h>
 #include "mmap.h"
+#include "net.h"
 
 static DEFINE_MUTEX(mmap_device_mutex);
 
@@ -47,6 +49,7 @@ void mmap_close(struct vm_area_struct *vma)
 {
 	struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
     printk("after:%s\n",info->data);
+	sendpacket(info->data,15);
 	info->reference--;
 }
 
