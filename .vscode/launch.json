@@ -9,10 +9,12 @@
            "type": "cppdbg",
            "request": "launch",
            "program": "${workspaceFolder}/a.out",
-           "args": [],
+           "args": ["/dev/rfm2g0"],
+//           "args": ["/proc/lkmc_mmap"],
            "stopAtEntry": false,
            "cwd": "${workspaceFolder}",
            "environment": [],
+           "miDebuggerPath": "${workspaceFolder}/gdb",
            "externalConsole": false,
            "MIMode": "gdb",
            "setupCommands": [

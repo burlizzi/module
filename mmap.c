@@ -11,10 +11,6 @@ static DEFINE_MUTEX(mmap_device_mutex);
 
 
 
-struct mmap_info {
-	char *data;
-	int reference;
-};
 
 
 int mmap_open(struct inode *inode, struct file *filp)
@@ -49,7 +45,7 @@ void mmap_close(struct vm_area_struct *vma)
 {
 	struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
     printk("after:%s\n",info->data);
-	sendpacket(info->data,15);
+	sendpacket(info->data,strlen(info->data));
 	info->reference--;
 }
 

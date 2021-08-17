@@ -7,7 +7,7 @@ unsigned char dest[ETH_ALEN] = {0xff,0xff,0xff,0xff,0xff,0xff}; //broadcast
 struct net_device* dev_eth;
 
 static char *device = "eth0";
-module_param(device, charp,0);
+module_param(device, charp,S_IRUGO);
 MODULE_PARM_DESC(device, "network interface to use");
 
 

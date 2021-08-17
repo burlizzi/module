@@ -51,6 +51,8 @@ ssize_t device_file_read(
     , size_t count
     , loff_t *position)
 {
+    struct mmap_info *info = file_ptr->private_data;
+    
     printk( KERN_NOTICE "vrfm: Device file is read at offset = %i, read bytes count = %u\n"
         , (int)*position
         , (unsigned int)count );
@@ -61,7 +63,7 @@ ssize_t device_file_read(
     if( *position + count > g_s_Hello_World_size )
         count = g_s_Hello_World_size - *position;
 
-    if( copy_to_user(user_buffer, g_s_Hello_World_string + *position, count) != 0 )
+    if( copy_to_user(user_buffer, info->data + *position, count) != 0 )
         return -EFAULT;
 
     *position += count;
@@ -80,6 +82,9 @@ ssize_t complete_write(struct file *filp,const char __user *buf,size_t count,lof
     if ( copy_from_user(procfs_buffer, buf, count) ) {
 		return -EFAULT;
 	}
+    struct mmap_info *info = filp->private_data;
+    //memcpy(info->data,buf,count-1);
+    memcpy(info->data, "Hello from kernel this is file: ", 32);
 
     //printk( KERN_NOTICE "vrfm: received %s\n" , procfs_buffer);
 
