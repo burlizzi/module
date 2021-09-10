@@ -1,4 +1,5 @@
 #include "net.h"
+#include "protocol.h"
 #include <linux/netdevice.h>
 #include <linux/moduleparam.h>
 
@@ -11,7 +12,7 @@ module_param(device, charp,S_IRUGO);
 MODULE_PARM_DESC(device, "network interface to use");
 
 
-void print_mac_hdr(struct ethhdr *eth);
+
 int sendpacket (const char* data, unsigned int count)
 {
     
@@ -36,7 +37,7 @@ int sendpacket (const char* data, unsigned int count)
 
     if(dev_queue_xmit(skbt)!=NET_XMIT_SUCCESS)
     {
-        printk("Not send!!\n");
+        printk("vrfm: cannot send packet!!\n");
     }
     netif_wake_queue(dev_eth);
 
@@ -48,7 +49,14 @@ int sendpacket (const char* data, unsigned int count)
 static struct packet_type hook; /* Initialisation routine */
 
 
+/*Print eth  headers*/
+void print_mac_hdr(struct ethhdr *eth)
+{
+    printk("dest: %02x:%02x:%02x:%02x:%02x:%02x \n",eth->h_dest[0],eth->h_dest[1],eth->h_dest[2],eth->h_dest[3],eth->h_dest[4],eth->h_dest[5]);
+    printk("orig: %02x:%02x:%02x:%02x:%02x:%02x\n",eth->h_source[0],eth->h_source[1],eth->h_source[2],eth->h_source[3],eth->h_source[4],eth->h_source[5]);
+    printk("Proto: 0x%04x\n",ntohs(eth->h_proto));
 
+}
 
 static int hook_func( struct sk_buff *skb)
 {
@@ -60,24 +68,15 @@ static int hook_func( struct sk_buff *skb)
         if (ntohs(eth->h_proto)==0x0632)
         { 
             print_mac_hdr(eth);
-            for (x=0;x<skb->len;x++)
-                    printk("%x ", skb->data[x]);
-            printk("\n%x\n", skb->data_len);
-
+            receive(skb->data,skb->len);
         }
+        
 
     kfree_skb(skb);
     return NF_DROP;
 }
 
-/*Print eth  headers*/
-void print_mac_hdr(struct ethhdr *eth)
-{
-    printk("dest: %02x:%02x:%02x:%02x:%02x:%02x \n",eth->h_dest[0],eth->h_dest[1],eth->h_dest[2],eth->h_dest[3],eth->h_dest[4],eth->h_dest[5]);
-    printk("orig: %02x:%02x:%02x:%02x:%02x:%02x\n",eth->h_source[0],eth->h_source[1],eth->h_source[2],eth->h_source[3],eth->h_source[4],eth->h_source[5]);
-    printk("Proto: 0x%04x\n",ntohs(eth->h_proto));
 
-}
 
 int handler_add_config (void)
 {
@@ -92,11 +91,19 @@ int handler_add_config (void)
 int net_init(void)
 {
     int err=0;
+    int i=1;
+    
     printk(KERN_INFO "netif is : %s\n", device);
     dev_eth=dev_get_by_name(&init_net,device);
     if (!dev_eth)
     {
-        printk("dev not found\n");
+        printk("dev not found, choose one of the following:\n");
+        for (dev_eth=dev_get_by_index(&init_net,1);(dev_eth=dev_get_by_index(&init_net,i)) && i < 100 && dev_eth; i++)
+        {
+            printk("dev %d: %s\n",i,dev_eth->name);
+        }
+        
+
         return -1;
     }   
 

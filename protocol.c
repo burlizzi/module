@@ -1,9 +1,14 @@
 #include "protocol.h"
+#include "net.h"
+#include <linux/netdevice.h>
 
 
 
-int test(void)
+int receive(const char*data, unsigned int size)
 {
-    //SharedMemory x;
+    int x;
+    for (x=sizeof(struct ethhdr);x<size;x++)
+            printk("%x ", data[x]);
+    printk("\n%x\n", size);
     return 42;
 }

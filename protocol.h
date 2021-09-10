@@ -1,1 +1,1 @@
-int test(void);
+int receive(const char*data, unsigned int size);
