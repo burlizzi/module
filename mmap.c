@@ -3,15 +3,51 @@
 #include <linux/slab.h>
 #include <linux/fs.h>
 #include <linux/version.h>
+#include <linux/kernel.h>
 #include "mmap.h"
 #include "net.h"
+#include <linux/moduleparam.h>
 
 static DEFINE_MUTEX(mmap_device_mutex);
 
 
 
+static int size = 65536; // default
 
+static int size_op_write_handler(const char * val, const struct kernel_param *kp)
+{
+	printk("size_op_write_handler\n");
+	size=simple_strtol(val,NULL,10);
 
+	return size;
+}
+static int notify_param(const char *val, const struct kernel_param *kp)
+{
+		printk("notify_param\n");
+        int res = param_set_int(val, kp); // Use helper for write variable
+        if(res==0) {
+                printk(KERN_INFO "New value of size = %d\n", size);
+                return 0;
+        }
+		else
+                printk(KERN_WARNING "cannot parse %s\n",val);
+        return -1;
+}
+
+static int size_op_read_handler(char *buffer, const struct kernel_param *kp)
+{
+	printk("size_op_read_handler %d\n",size);
+	snprintf(buffer,10,"%d",size);
+
+	return strlen(buffer);
+}
+
+static const struct kernel_param_ops size_op_ops = {
+	.set = &notify_param,
+	.get = &size_op_read_handler
+};
+
+module_param_cb(size, &size_op_ops, &size, S_IRUGO|S_IWUSR);
 
 int mmap_open(struct inode *inode, struct file *filp)
 {
