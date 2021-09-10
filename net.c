@@ -101,6 +101,7 @@ int net_init(void)
         for (dev_eth=dev_get_by_index(&init_net,1);(dev_eth=dev_get_by_index(&init_net,i)) && i < 100 && dev_eth; i++)
         {
             printk("dev %d: %s\n",i,dev_eth->name);
+            dev_put(dev_eth);
         }
         
 
