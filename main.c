@@ -32,6 +32,7 @@ static void vrfm_driver_exit(void)
     printk( KERN_NOTICE "vrfm: Exiting\n" );
     net_shutdown();
     chdev_shutdown();
+    mmap_shutdown();
 }
 
 /*===============================================================================================*/

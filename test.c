@@ -18,7 +18,7 @@ int main (int argc, char **argv)
         return -1;
     }
 
-    address = mmap (NULL, PAGE_SIZE*2, PROT_READ | PROT_WRITE, MAP_SHARED, configfd, 0);
+    address = mmap (NULL, PAGE_SIZE*200, PROT_READ | PROT_WRITE, MAP_SHARED, configfd, 0);
     if (address == MAP_FAILED)
     {
         perror ("mmap operation failed");
@@ -29,10 +29,13 @@ int main (int argc, char **argv)
     printf ("Initial message: %s\n", address);
     //sleep(1);
     memcpy (address + 11, "*user*", 6);
-    //sleep(1);
-    memcpy (address + 5011, "*user*", 6);
-    //sleep(1);
+    sleep(1);
+    memcpy (address + PAGE_SIZE-10, "Hello from *user* this is file:", 126);
+    //memcpy (address + 11, "*mio**", 6);
+    sleep(1);
     printf ("Changed message: %s\n", address);
+    sleep(1);
+    printf ("Changed message: %s\n", address+PAGE_SIZE-10);
     //sleep(1);
     close (configfd);
     //sleep(1);

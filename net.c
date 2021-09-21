@@ -60,9 +60,7 @@ void print_mac_hdr(struct ethhdr *eth)
 
 static int hook_func( struct sk_buff *skb)
 {
-        int x;
         struct ethhdr *eth;    
-        
 
         eth= eth_hdr(skb);
         if (ntohs(eth->h_proto)==0x0632)

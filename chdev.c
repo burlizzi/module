@@ -75,6 +75,7 @@ ssize_t complete_write(struct file *filp,const char __user *buf,size_t count,lof
 {
     
     //printk( KERN_NOTICE "vrfm: Device file is written at offset = %i, write bytes count = %u\n", (int)*pos, (unsigned int)count );
+    struct mmap_info *info = filp->private_data;
 
     if (count > MAX_BUFFER ) {
 		count = MAX_BUFFER;
@@ -82,9 +83,10 @@ ssize_t complete_write(struct file *filp,const char __user *buf,size_t count,lof
     if ( copy_from_user(procfs_buffer, buf, count) ) {
 		return -EFAULT;
 	}
-    struct mmap_info *info = filp->private_data;
-    //memcpy(info->data,buf,count-1);
-    memcpy(info->data, "Hello from kernel this is file: ", 32);
+    
+    memcpy(info->data,buf,count-1);
+    
+    //memcpy(info->data, "Hello from kernel this is file: ", 32);
 
     //printk( KERN_NOTICE "vrfm: received %s\n" , procfs_buffer);
 
