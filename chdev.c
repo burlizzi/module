@@ -75,8 +75,9 @@ ssize_t device_file_read(
 ssize_t complete_write(struct file *filp,const char __user *buf,size_t count,loff_t *pos)
 {
     
-    printk( KERN_NOTICE "vrfm: Device file is written at offset = %i, write bytes count = %u\n", (int)*pos, (unsigned int)count );
     struct mmap_info *info = filp->private_data;
+
+    printk( KERN_NOTICE "vrfm: Device file is written at offset = %i, write bytes count = %u\n", (int)*pos, (unsigned int)count );
 
     if (count > MAX_BUFFER ) {
 		count = MAX_BUFFER;
