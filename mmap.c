@@ -115,9 +115,9 @@ void mmap_open1(struct vm_area_struct *vma)
 void mmap_close(struct vm_area_struct *vma)
 {
 	struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
-    printk("after:%s\n",info->data);
-    printk("after:%s\n",info->data+PAGE_SIZE-10);
-	sendpacket(info->data,size);
+    //printk("after:%s\n",info->data);
+    //printk("after:%s\n",info->data+PAGE_SIZE-10);
+	//sendpacket(info->data,size);
 	info->reference--;
 }
 
@@ -142,7 +142,8 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 		return 0;
 	}
 
-	page = virt_to_page(info->data+PAGE_SIZE*vmf->pgoff);
+	//page = virt_to_page(info->data+PAGE_SIZE*vmf->pgoff);
+	page = virt_to_page(info->data);
 
 	get_page(page);
 	vmf->page = page;
@@ -161,12 +162,11 @@ void map_pages(struct vm_area_struct *fe, struct vm_fault *vmf)
 
 int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 {
-	int ret = VM_FAULT_LOCKED;
-	lock_page(vmf->page);
+	int ret = VM_FAULT_FALLBACK;//VM_FAULT_LOCKED;
+	//lock_page(vmf->page);
 	printk("page_mkwrite flags:%x pgoff:%ld max_pgoff:%ld page:%p\n ",vmf->flags,vmf->pgoff,vmf->max_pgoff,vmf->page);
 	return ret;
 }
-
 
 
 struct vm_operations_struct mmap_vm_ops = {
@@ -221,7 +221,7 @@ int mmap_ops_init(void)
 		printk("mmap_ops_init: cannot allocate memory\n");
 		return 1;
 	}
-	memcpy(pages, "asdf", 4);
+	memcpy(pages, "asdf", 5);
     mutex_init(&mmap_device_mutex);
     return 0;
 }
