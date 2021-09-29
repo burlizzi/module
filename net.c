@@ -15,6 +15,7 @@ MODULE_PARM_DESC(device, "network interface to use");
 
 int sendpacket (const char* data, unsigned int count)
 {
+    return 0;
     
     char * eth;
     struct sk_buff * skbt =alloc_skb(ETH_FRAME_LEN*2+2,GFP_KERNEL);      
