@@ -2,13 +2,14 @@
 #include <string.h>
 #include <fcntl.h>
 #include <sys/mman.h>
+#include <unistd.h> // close function
 #define S(x) x,sizeof(x)
 
 #define PAGE_SIZE     4096
 
 int main (int argc, char **argv)
 {
-    printf (S("la dimensione di  questa stringa e'%d\n"));
+    printf (S("la dimensione di  questa stringa e'%lu\n"));
 
     int configfd;
     char *address = NULL;
