@@ -6,11 +6,16 @@ PWD = $(shell pwd)
 MOD_OUTPUT_DIR =$(PWD)/bin
 BUILD_DIR_MAKEFILE ?= $(PWD)/bin/Makefile
 
-all: module 
+
+all: module test
 
 #$(MOD_OUTPUT_DIR)/protocol.o: protocol.cpp
 #	g++ -c protocol.cpp -o $@
 
+
+
+test: test.c
+	gcc -g test.c -o test
 
 obj-m += $(MODULE_NAME).o 
  $(MODULE_NAME)-y += chdev.o main.o  mmap.o net.o protocol.o
