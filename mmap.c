@@ -13,7 +13,7 @@ static DEFINE_MUTEX(mmap_device_mutex);
 
 
 
-static int size = 65536; // default
+int size = 65536; // default
 static int order = 5; // default
 char* pages;
 
@@ -152,7 +152,7 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 
 	return 0;
 }
-
+/*
 void map_pages(struct vm_area_struct *fe, struct vm_fault *vmf)
 {
 	printk("map_pages flags:%x pgoff:%ld max_pgoff:%ld page:%p\n ",vmf->flags,vmf->pgoff,vmf->max_pgoff,vmf->page);
@@ -167,14 +167,14 @@ int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 	printk("page_mkwrite flags:%x pgoff:%ld max_pgoff:%ld page:%p\n ",vmf->flags,vmf->pgoff,vmf->max_pgoff,vmf->page);
 	return ret;
 }
-
+*/
 
 struct vm_operations_struct mmap_vm_ops = {
 	.open = mmap_open1,
 	.close = mmap_close,
 	.fault = mmap_fault,
-	.map_pages = map_pages,
-	.page_mkwrite = page_mkwrite,
+	//.map_pages = map_pages,
+	//.page_mkwrite = page_mkwrite,
 };
 
 
@@ -186,7 +186,7 @@ int mmapfop_close(struct inode *inode, struct file *filp)
 	struct mmap_info *info = filp->private_data;
     printk("mmapfop_close\n");
 
-	free_page((unsigned long)info->data);
+	//free_page((unsigned long)info->data);
 	kfree(info);
 	filp->private_data = NULL;
 
