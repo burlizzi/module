@@ -1,31 +1,25 @@
 
 MODULE_NAME ?= vrfm
 DEVICE_NAME ?= rfm2g0
+MAP_SIZE ?= 65536
+
 BUILD_DIR = /lib/modules/$(shell uname -r)/build
 PWD = $(shell pwd)
 MOD_OUTPUT_DIR =$(PWD)/bin
 BUILD_DIR_MAKEFILE ?= $(PWD)/bin/Makefile
 
 
-all: module test
-
-#$(MOD_OUTPUT_DIR)/protocol.o: protocol.cpp
-#	g++ -c protocol.cpp -o $@
+all: module bin/test
 
 
-
-test: test.c
-	gcc -g test.c -o test
+bin/test: test.c
+	cc -g test.c -o "bin/test"
 
 obj-m += $(MODULE_NAME).o 
  $(MODULE_NAME)-y += chdev.o main.o  mmap.o net.o protocol.o
 
-
-
-
 module: $(BUILD_DIR_MAKEFILE) 
-	KCPPFLAGS="-DDEVICE_NAME=$(DEVICE_NAME) -DMODULE_NAME=$(MODULE_NAME) -g"  	make -C $(BUILD_DIR) M=$(MOD_OUTPUT_DIR) src=$(PWD)   modules
-
+	KCPPFLAGS="-DDEVICE_NAME=$(DEVICE_NAME) -DMODULE_NAME=$(MODULE_NAME) -DMAP_SIZE=$(MAP_SIZE) -O3"  	make -C $(BUILD_DIR) M=$(MOD_OUTPUT_DIR) src=$(PWD)   modules
 
 $(BUILD_DIR):
 	$(warning kernel header source not found, install with )
@@ -49,6 +43,7 @@ default: module
 clean:
 	KCPPFLAGS="-DDEVICE_NAME=$(DEVICE_NAME) -DMODULE_NAME=$(MODULE_NAME)" make -C $(BUILD_DIR) M=$(MOD_OUTPUT_DIR) src=$(PWD) clean
 	rm $(BUILD_DIR_MAKEFILE)
+	rm bin/test
 
 
 install: 
