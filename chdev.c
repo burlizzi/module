@@ -41,9 +41,9 @@ static char *vrfm_devnode(struct device *dev, umode_t *mode)
 
 
 
-static const char g_s_Hello_World_string[] = "Hello world from kernel mode!\n\0";
-static const ssize_t g_s_Hello_World_size = sizeof(g_s_Hello_World_string);
-
+//static const char g_s_Hello_World_string[] = "Hello world from kernel mode!\n\0";
+//static const ssize_t g_s_Hello_World_size = sizeof(g_s_Hello_World_string);
+extern int size;
 /*===============================================================================================*/
 ssize_t device_file_read(
     struct file *file_ptr
@@ -57,12 +57,13 @@ ssize_t device_file_read(
         , (int)*position
         , (unsigned int)count );
 
-    if( *position >= g_s_Hello_World_size )
+    if( *position >= size )
         return 0;
 
-    if( *position + count > g_s_Hello_World_size )
-        count = g_s_Hello_World_size - *position;
+    if( *position + count > size )
+        count = size - *position;
 
+    //if( copy_to_user(user_buffer, g_s_Hello_World_string + *position, count) != 0 )
     if( copy_to_user(user_buffer, info->data + *position, count) != 0 )
         return -EFAULT;
 
@@ -74,7 +75,7 @@ ssize_t device_file_read(
 ssize_t complete_write(struct file *filp,const char __user *buf,size_t count,loff_t *pos)
 {
     
-    //printk( KERN_NOTICE "vrfm: Device file is written at offset = %i, write bytes count = %u\n", (int)*pos, (unsigned int)count );
+    printk( KERN_NOTICE "vrfm: Device file is written at offset = %i, write bytes count = %u\n", (int)*pos, (unsigned int)count );
     struct mmap_info *info = filp->private_data;
 
     if (count > MAX_BUFFER ) {
