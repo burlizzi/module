@@ -13,10 +13,8 @@ static DEFINE_MUTEX(mmap_device_mutex);
 
 
 
-int size = 65536; // default
-static int order = 5; // default
+int size = MAP_SIZE; // default
 char* pages;
-
 int size2order(int size)
 {
 	int i;
@@ -33,44 +31,45 @@ int size2order(int size)
 
 static int notify_param(const char *val, const struct kernel_param *kp)
 {
-        int res;
-		int oldorder=order;
-		char* newpages=0;
+	static int order=0;
+	int res;
+	int oldorder=order;
+	char* newpages=0;
 
-		printk("notify_param\n");
-		res = param_set_int(val, kp); // Use helper for write variable
-        if(res==0) {
-                printk(KERN_INFO "New value of size = %d\n", size);
-				order=size2order(size);
+	printk("notify_param\n");
+	res = param_set_int(val, kp); // Use helper for write variable
+	if(res==0) {
+			printk(KERN_INFO "New value of size = %d\n", size);
+			order=size2order(size);
 
-				if ((PAGE_SIZE<<(order-1))!=size)
+			if ((PAGE_SIZE<<(order-1))!=size)
+			{
+				size=(PAGE_SIZE<<(order-1));
+				printk(KERN_WARNING "size is not a power of 2, new value of size = %d\n", size);
+			}
+			if (oldorder!=order)
+			{
+				printk("reallocating...\n");
+				newpages= (char *)__get_free_pages(GFP_KERNEL, order);
+				if (!pages)
 				{
-					size=(PAGE_SIZE<<(order-1));
-					printk(KERN_WARNING "size is not a power of 2, new value of size = %d\n", size);
+					printk("mmap_ops_init: cannot allocate memory\n");
+					return 1;
 				}
-				if (oldorder!=order)
-				{
-					printk("reallocating...\n");
-					newpages= (char *)__get_free_pages(GFP_KERNEL, order);
-					if (!pages)
-					{
-						printk("mmap_ops_init: cannot allocate memory\n");
-						return 1;
-					}
-					memcpy(newpages,pages,min((1<<order),(1<<oldorder)));
-					free_pages((unsigned long)pages,oldorder);
-				}
-				else 
-				{
-					printk("no need to reallocate\n");
+				memcpy(newpages,pages,min((1<<order),(1<<oldorder)));
+				free_pages((unsigned long)pages,oldorder);
+			}
+			else 
+			{
+				printk("no need to reallocate\n");
 
-				}
+			}
 
-                return 0;
-        }
-		else
-                printk(KERN_WARNING "cannot parse %s\n",val);
-        return -1;
+			return 0;
+	}
+	else
+			printk(KERN_WARNING "cannot parse %s\n",val);
+	return -1;
 }
 
 static int size_op_read_handler(char *buffer, const struct kernel_param *kp)
