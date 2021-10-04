@@ -86,7 +86,7 @@ ssize_t complete_write(struct file *filp,const char __user *buf,size_t count,lof
 		return -EFAULT;
 	}
     
-    memcpy(info->data,buf,count-1);
+    memcpy(info->data,procfs_buffer,count-1);
     
     //memcpy(info->data, "Hello from kernel this is file: ", 32);
 
