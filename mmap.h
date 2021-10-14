@@ -1,5 +1,5 @@
 struct mmap_info {
-	char *data;
+	char **data;
 	int reference;
 	struct file *lower_file;
 	const struct vm_operations_struct *lower_vm_ops;	
