@@ -1,15 +1,25 @@
 
 MODULE_NAME ?= vrfm
 DEVICE_NAME ?= rfm2g0
-MAP_SIZE ?= 65536
+MAP_SIZE ?= 67108864
+#MAP_SIZE ?= 65535
 
 BUILD_DIR = /lib/modules/$(shell uname -r)/build
 PWD = $(shell pwd)
 MOD_OUTPUT_DIR =$(PWD)/bin
 BUILD_DIR_MAKEFILE ?= $(PWD)/bin/Makefile
+FLAGS = -O3
+
+all: module bin/test sync
+
+debug: FLAGS = -O0 -DDEBUG -g
+debug: all
 
 
-all: module bin/test
+reinstall: uninstall install
+
+sync:
+	sync
 
 
 bin/test: test.c
@@ -19,7 +29,7 @@ obj-m += $(MODULE_NAME).o
  $(MODULE_NAME)-y += chdev.o main.o  mmap.o net.o protocol.o
 
 module: $(BUILD_DIR_MAKEFILE) 
-	KCPPFLAGS="-DDEVICE_NAME=$(DEVICE_NAME) -DMODULE_NAME=$(MODULE_NAME) -DMAP_SIZE=$(MAP_SIZE) -O3"  	make -C $(BUILD_DIR) M=$(MOD_OUTPUT_DIR) src=$(PWD)   modules
+	KCPPFLAGS="-DDEVICE_NAME=$(DEVICE_NAME) -DMODULE_NAME=$(MODULE_NAME) -DMAP_SIZE=$(MAP_SIZE) $(FLAGS)"  	make -C $(BUILD_DIR) M=$(MOD_OUTPUT_DIR) src=$(PWD)   modules
 
 $(BUILD_DIR):
 	$(warning kernel header source not found, install with )
@@ -46,9 +56,9 @@ clean:
 	rm bin/test
 
 
-install: 
+install: all
 	KCPPFLAGS="-DDEVICE_NAME=$(DEVICE_NAME) -DMODULE_NAME=$(MODULE_NAME)" make -C $(BUILD_DIR)  M=$(MOD_OUTPUT_DIR) src=$(PWD)  modules_install
-	insmod $(MOD_OUTPUT_DIR)/$(MODULE_NAME).ko
+	@sudo insmod $(MOD_OUTPUT_DIR)/$(MODULE_NAME).ko
 
 uninstall:
-	rmmod $(MODULE_NAME)
+	@lsmod | grep $(MODULE_NAME) && sudo rmmod $(MODULE_NAME) || echo "module is not loaded"
