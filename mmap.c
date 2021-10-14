@@ -11,12 +11,14 @@
 #include <linux/moduleparam.h>
 #include <linux/dma-mapping.h>
 
-static DEFINE_MUTEX(mmap_device_mutex);
+//static DEFINE_MUTEX(mmap_device_mutex);
+struct mmap_info *info = NULL;
+
 
 
 
 int size = MAP_SIZE; // default
-static bool debug = false;
+static bool debug = true;
 module_param(debug, bool,S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 
 
@@ -88,21 +90,21 @@ static const struct kernel_param_ops size_op_ops = {
 
 module_param_cb(size, &size_op_ops, &size, S_IRUGO|S_IWUSR);
 
+
+
+static void fb_deferred_io_work(struct work_struct *work);
+
 int mmap_open(struct inode *inode, struct file *filp)
 {
-	struct mmap_info *info = NULL;
 
 
-	if (!mutex_trylock(&mmap_device_mutex)) {
+	/*if (!mutex_trylock(&mmap_device_mutex)) {
 		LOG(KERN_WARNING
 		       "Another process is accessing the device\n");
 		return -EBUSY;
-	}
+	}*/
 
-	info = kmalloc(sizeof(struct mmap_info), GFP_KERNEL);
-	
 
-	info->data = page_array;
 	filp->private_data = info;    
     return 0;
 }
@@ -119,9 +121,6 @@ void mmap_close(struct vm_area_struct *vma)
 {
 	struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
 	LOG("mmap_close %d\n",info->reference);
-    //LOG("after:%s\n",info->data);
-    //LOG("after:%s\n",info->data+PAGE_SIZE-10);
-	//sendpacket(info->data,size);
 	info->reference--;
 }
 
@@ -177,27 +176,48 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	}	
 
 	get_page(page);
+	
+
+	page->index = vmf->pgoff % PAGES_PER_BLOCK;
+
+
 	LOG("page:%p\n",page);
 	vmf->page = page;
 	
 	return 0;
 }
-/*
-void map_pages(struct vm_area_struct *fe, struct vm_fault *vmf)
-{
-	LOG("map_pages flags:%x pgoff:%ld max_pgoff:%ld page:%p\n ",vmf->flags,vmf->pgoff,vmf->max_pgoff,vmf->page);
 
+
+static void fb_deferred_io_work(struct work_struct *work)
+{
+	struct page* page;
+	LOG("get atomic data\n");
+    page=container_of(work, struct mmap_info, deferred_work)->page;
+	
+	
+	LOG("waiting for the process to release lock\n");
+	lock_page(page);
+	LOG("process finished, locked, sending packet\n");
+	const char* data=(const char*)page_to_phys(page);
+
+	//sendpacket(addr,PAGE_SIZE);
+	LOG("packet sent %p\n",data);//so far it deadlocks if data is accessed
+	unlock_page(page);
+	LOG("finished unlocked\n");
 }
 
 
 int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 {
-	int ret = VM_FAULT_FALLBACK;//VM_FAULT_LOCKED;
+	struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
+	LOG("page_mkwrite\n");
 	lock_page(vmf->page);
+	LOG("atomic_set\n");
+	info->page=vmf->page;
+ 	schedule_delayed_work(&info->deferred_work, info->delay);
 	LOG("page_mkwrite flags:%x pgoff:%ld max_pgoff:%ld page:%p\n ",vmf->flags,vmf->pgoff,vmf->max_pgoff,vmf->page);
-	return ret;
+	return VM_FAULT_LOCKED;
 }
-/**/
 
 
 struct vm_operations_struct mmap_vm_ops = {
@@ -205,7 +225,7 @@ struct vm_operations_struct mmap_vm_ops = {
 	.close = mmap_close,
 	.fault = mmap_fault,
 	//.map_pages = map_pages,
-	//.page_mkwrite = page_mkwrite,
+	.page_mkwrite = page_mkwrite,
 };
 
 
@@ -214,7 +234,7 @@ struct vm_operations_struct mmap_vm_ops = {
 int mmapfop_close(struct inode *inode, struct file *filp)
 {
     LOG("mmapfop_close\n");
-	mutex_unlock(&mmap_device_mutex);
+	//mutex_unlock(&mmap_device_mutex);
 	return 0;
 }
 
@@ -231,15 +251,23 @@ int memory_map (struct file * f, struct vm_area_struct * vma)
 }
 
 
-
 int mmap_ops_init(void)
 {
 	int pages=size/PAGE_SIZE/PAGES_PER_BLOCK;
 	printk("mmap_ops_init: size=%dM blocks:%d with %d pages/block\n",size/1024/1024,pages,PAGES_PER_BLOCK);
+
 	page_array=kmalloc(pages*sizeof(char*), GFP_KERNEL);
 	memset(page_array,0,pages*sizeof(char*));
-    mutex_init(&mmap_device_mutex);
-    return 0;
+
+	info = kmalloc(sizeof(struct mmap_info), GFP_KERNEL);
+	
+
+	info->data = page_array;
+	info->delay=0;
+
+ 	INIT_DELAYED_WORK(&info->deferred_work, fb_deferred_io_work);
+   //mutex_init(&mmap_device_mutex);
+   return 0;
 }
 void mmap_shutdown()
 {
