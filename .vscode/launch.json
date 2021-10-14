@@ -8,7 +8,7 @@
            "name": "(gdb) Launch",
            "type": "cppdbg",
            "request": "launch",
-           "program": "${workspaceFolder}/a.out",
+           "program": "${workspaceFolder}/bin/test",
            "args": ["/dev/rfm2g0"],
 //           "args": ["/proc/lkmc_mmap"],
            "stopAtEntry": false,

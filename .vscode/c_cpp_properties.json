@@ -4,6 +4,7 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**",
+                "/usr/src/linux-4.1.39-56-obj/x86_64/pv/arch/x86/include/generated",
                 "/usr/src/linux-4.1.39-56/include",
                 "/usr/src/linux-4.1.39-56-obj/x86_64/default/include",
                 "/usr/src/linux-4.1.39-56/arch/x86/include"
@@ -14,7 +15,9 @@
             "cppStandard": "c++14",
             "intelliSenseMode": "clang-x64",
             "compilerArgs": [
-                "-D__KERNEL__"
+                "-D__KERNEL__ ",
+                "-DMAP_SIZE=1000",
+                "-DKBUILD_MODNAME"
             ]
         }
     ],

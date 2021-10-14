@@ -6,12 +6,25 @@
         {
             "label": "build",
             "type": "shell",
-            "problemMatcher": ["$gcc"],
+            //"problemMatcher": ["$gcc"],
+            "problemMatcher": {
+                "base": "$gcc",
+                "fileLocation": ["absolute"]
+            },
             "group": {
               "kind": "build",
               "isDefault": true
             },
-            "command": "make"
+            "command": "make reinstall",
+            "presentation": {
+                "echo": true,
+                "reveal": "never",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            }
+
         }
     ]
 }
