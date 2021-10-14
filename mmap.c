@@ -182,7 +182,7 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	
 	return 0;
 }
-
+/*
 void map_pages(struct vm_area_struct *fe, struct vm_fault *vmf)
 {
 	LOG("map_pages flags:%x pgoff:%ld max_pgoff:%ld page:%p\n ",vmf->flags,vmf->pgoff,vmf->max_pgoff,vmf->page);
