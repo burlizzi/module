@@ -120,7 +120,10 @@ void mmap_open1(struct vm_area_struct *vma)
 void mmap_close(struct vm_area_struct *vma)
 {
 	struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
+	LOG("data close=%s\n",info->data[info->x]);
+
 	LOG("mmap_close %d\n",info->reference);
+
 	info->reference--;
 }
 
@@ -182,6 +185,10 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 
 
 	LOG("page:%p\n",page);
+
+	#define PAGE_MAPPING_MOVABLE 0x2
+	//page->mapping = (long int)page->mapping | PAGE_MAPPING_MOVABLE;
+
 	vmf->page = page;
 	
 	return 0;
@@ -191,18 +198,22 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 static void fb_deferred_io_work(struct work_struct *work)
 {
 	struct page* page;
+	const char* data;
+	struct mmap_info* info=(struct mmap_info*)container_of(work, struct mmap_info, deferred_work);
 	LOG("get atomic data\n");
-    page=container_of(work, struct mmap_info, deferred_work)->page;
+    page=info->page;
 	
-	
+	//udelay(1000);
 	LOG("waiting for the process to release lock\n");
 	lock_page(page);
 	LOG("process finished, locked, sending packet\n");
-	const char* data=(const char*)page_to_phys(page);
+	data=info->data[info->x];
 
-	//sendpacket(addr,PAGE_SIZE);
-	LOG("packet sent %p\n",data);//so far it deadlocks if data is accessed
+	//sendpacket(addr,PAGE_SIZE);//so far it deadlocks if data is accessed
+	LOG("packet sent %p %d\n",data,info->x);
 	unlock_page(page);
+	//page_cache_release(page);
+	LOG("data io_work= %s\n",data);
 	LOG("finished unlocked\n");
 }
 
@@ -214,18 +225,34 @@ int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 	lock_page(vmf->page);
 	LOG("atomic_set\n");
 	info->page=vmf->page;
- 	schedule_delayed_work(&info->deferred_work, info->delay);
+	info->x = vmf->pgoff;
+ 	schedule_delayed_work(&info->deferred_work, 0);
 	LOG("page_mkwrite flags:%x pgoff:%ld max_pgoff:%ld page:%p\n ",vmf->flags,vmf->pgoff,vmf->max_pgoff,vmf->page);
+	
 	return VM_FAULT_LOCKED;
 }
 
+
+int access(struct vm_area_struct *vma, unsigned long addr,
+		      void *buf, int len, int write)
+{
+	LOG("access addr:%lx buf:%p len:%d write:%d\n ",addr,buf,len,write);
+	return 0;
+}
+
+void map_pages(struct vm_area_struct *vma, struct vm_fault *vmf)
+{
+	LOG("map_pages flags:%x pgoff:%ld max_pgoff:%ld page:%p\n ",vmf->flags,vmf->pgoff,vmf->max_pgoff,vmf->page);
+
+}
 
 struct vm_operations_struct mmap_vm_ops = {
 	.open = mmap_open1,
 	.close = mmap_close,
 	.fault = mmap_fault,
-	//.map_pages = map_pages,
+	.map_pages = map_pages,
 	.page_mkwrite = page_mkwrite,
+	.access = access
 };
 
 
@@ -263,7 +290,7 @@ int mmap_ops_init(void)
 	
 
 	info->data = page_array;
-	info->delay=0;
+	//info->delay=0;
 
  	INIT_DELAYED_WORK(&info->deferred_work, fb_deferred_io_work);
    //mutex_init(&mmap_device_mutex);

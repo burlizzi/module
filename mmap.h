@@ -4,8 +4,9 @@ struct mmap_info {
 	int reference;
 	struct file *lower_file;
 	//const struct vm_operations_struct *lower_vm_ops;	
-	int delay;
+	//int delay;
 	struct page* page;
+	int x;
 };
 
 int mmap_ops_init(void);
