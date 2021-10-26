@@ -1,4 +1,5 @@
 #include <linux/delay.h>
+#include <linux/writeback.h>
 #include <linux/mm.h>
 #include <linux/pagemap.h>
 #include <linux/mm_types.h>
@@ -8,6 +9,8 @@
 #include <linux/kernel.h>
 #include "mmap.h"
 #include "net.h"
+#include "config.h"
+#include "protocol.h"
 #include <linux/moduleparam.h>
 #include <linux/dma-mapping.h>
 
@@ -18,18 +21,19 @@ struct mmap_info *info = NULL;
 
 
 int size = MAP_SIZE; // default
-static bool debug = true;
+
+bool debug = true;
 module_param(debug, bool,S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 
 
-#define PAGES_ORDER 0 //LEAVE IT 0!!! can't make it work 
-#define PAGES_PER_BLOCK (1<<PAGES_ORDER)
 
 
-#define LOG if (unlikely(debug)) printk
 
-char** page_array;
+int blocks=MAP_SIZE/PAGE_SIZE/PAGES_PER_BLOCK;
 
+char** blocks_array=NULL;
+short* dirt_pages;
+//short* current_dirt;
 
 static int notify_param(const char *val, const struct kernel_param *kp)
 {
@@ -47,6 +51,7 @@ static int notify_param(const char *val, const struct kernel_param *kp)
 			if ((PAGE_SIZE<<(order-1))!=size)
 			{
 				size=(PAGE_SIZE<<(order));
+				blocks=size/PAGE_SIZE/PAGES_PER_BLOCK;
 				LOG(KERN_WARNING "size is not a power of 2, new value of size = %d\n", size);
 			}
 			if (oldorder!=order)
@@ -104,7 +109,7 @@ int mmap_open(struct inode *inode, struct file *filp)
 		return -EBUSY;
 	}*/
 
-
+	//info->inode=inode;
 	filp->private_data = info;    
     return 0;
 }
@@ -190,7 +195,6 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	//page->mapping = (long int)page->mapping | PAGE_MAPPING_MOVABLE;
 
 	vmf->page = page;
-	
 	return 0;
 }
 
@@ -198,38 +202,59 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 static void fb_deferred_io_work(struct work_struct *work)
 {
 	struct page* page;
-	const char* data;
-	struct mmap_info* info=(struct mmap_info*)container_of(work, struct mmap_info, deferred_work);
-	LOG("get atomic data\n");
-    page=info->page;
+	short *index;
+	//const char* data;
+	//struct mmap_info* info=(struct mmap_info*)container_of(work, struct mmap_info, deferred_work);
+	//LOG("get atomic data\n");
+    
 	
 	//udelay(1000);
-	LOG("waiting for the process to release lock\n");
-	lock_page(page);
-	LOG("process finished, locked, sending packet\n");
-	data=info->data[info->x];
-
-	//sendpacket(addr,PAGE_SIZE);//so far it deadlocks if data is accessed
-	LOG("packet sent %p %d\n",data,info->x);
-	unlock_page(page);
-	//page_cache_release(page);
-	LOG("data io_work= %s\n",data);
-	LOG("finished unlocked\n");
+	//LOG("waiting for the process to release lock\n");
+	
+	LOG("fb_deferred_io_work %p(%d)\n",dirt_pages,*dirt_pages);
+	//data=info->data[info->x];
+	for ( index = dirt_pages; *index>=0  ; index++)
+	{
+		page=virt_to_page(blocks_array[*index]);
+		lock_page(page);
+		transmit(*index);
+		LOG("packet sent %p %d\n",blocks_array[*index],*index);
+		unlock_page(page);
+		//mlock(blocks_array[*index],PAGE_SIZE);
+		//page->
+		//put_page(page);
+	}
+	
+	
+	
+	//LOG("data io_work= %s\n",data);
+	//LOG("finished unlocked\n");
 }
 
 
 int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 {
+	short *index;
+	int myoff=((long unsigned int)vmf->virtual_address-vma->vm_start)/PAGE_SIZE/PAGES_PER_BLOCK;
 	struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
 	LOG("page_mkwrite\n");
 	lock_page(vmf->page);
 	LOG("atomic_set\n");
 	info->page=vmf->page;
-	info->x = vmf->pgoff;
- 	schedule_delayed_work(&info->deferred_work, 0);
-	LOG("page_mkwrite flags:%x pgoff:%ld max_pgoff:%ld page:%p\n ",vmf->flags,vmf->pgoff,vmf->max_pgoff,vmf->page);
-	
+	info->x = myoff;
+ 	
+	LOG("page_mkwrite flags:%x pgoff:%d max_pgoff:%ld page:%p\n ",vmf->flags,myoff,vmf->max_pgoff,vmf->page);
+	for ( index = dirt_pages; *index>=0  && myoff!=*index ; index++)
+	{
+		if (index-dirt_pages>blocks)
+		{
+			return VM_FAULT_SIGBUS;
+		}
+	}
+	*index=myoff;
+	schedule_delayed_work(&info->deferred_work, 1);
 	return VM_FAULT_LOCKED;
+
 }
 
 
@@ -271,37 +296,41 @@ int mmapfop_close(struct inode *inode, struct file *filp)
 int memory_map (struct file * f, struct vm_area_struct * vma)
 {
     vma->vm_ops = &mmap_vm_ops;
-	vma->vm_flags |= VM_DONTEXPAND | VM_DONTDUMP;
+	vma->vm_flags |= VM_DONTEXPAND | VM_DONTDUMP/* | VM_IO | VM_MIXEDMAP*/;
 	vma->vm_private_data = f->private_data;
 	mmap_open1(vma);    
+	
     return 0;
 }
 
 
 int mmap_ops_init(void)
 {
-	int pages=size/PAGE_SIZE/PAGES_PER_BLOCK;
-	printk("mmap_ops_init: size=%dM blocks:%d with %d pages/block\n",size/1024/1024,pages,PAGES_PER_BLOCK);
+	printk("mmap_ops_init: size=%dM blocks:%d with %d pages/block\n",size/1024/1024,blocks,PAGES_PER_BLOCK);
 
-	page_array=kmalloc(pages*sizeof(char*), GFP_KERNEL);
-	memset(page_array,0,pages*sizeof(char*));
+	blocks_array=kmalloc(blocks*sizeof(char*), GFP_KERNEL);
+	memset(blocks_array,0,blocks*sizeof(char*));
+
+	dirt_pages=kmalloc(size/PAGE_SIZE*sizeof(short), GFP_KERNEL);
+	memset(dirt_pages,-1,size/PAGE_SIZE*sizeof(short));
 
 	info = kmalloc(sizeof(struct mmap_info), GFP_KERNEL);
 	
 
-	info->data = page_array;
+	info->data = blocks_array;
 	//info->delay=0;
 
  	INIT_DELAYED_WORK(&info->deferred_work, fb_deferred_io_work);
+	
    //mutex_init(&mmap_device_mutex);
    return 0;
 }
 void mmap_shutdown()
 {
 	size_t i;
-	int pages=size/PAGE_SIZE/PAGES_PER_BLOCK;
-	for (i = 0; i < pages; i++)
+	int blocks=size/PAGE_SIZE/PAGES_PER_BLOCK;
+	for (i = 0; i < blocks; i++)
 	{
-		free_pages((unsigned long)page_array[i],PAGES_ORDER);	
+		free_pages((unsigned long)blocks_array[i],PAGES_ORDER);	
 	}	
 }

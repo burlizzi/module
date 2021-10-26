@@ -8,7 +8,8 @@ BUILD_DIR = /lib/modules/$(shell uname -r)/build
 PWD = $(shell pwd)
 MOD_OUTPUT_DIR =$(PWD)/bin
 BUILD_DIR_MAKEFILE ?= $(PWD)/bin/Makefile
-FLAGS = -O3
+#FLAGS = -O3
+FLAGS = -O0 -DDEBUG -g
 
 all: module bin/test sync
 
@@ -26,7 +27,7 @@ bin/test: test.c
 	cc -g test.c -o "bin/test"
 
 obj-m += $(MODULE_NAME).o 
- $(MODULE_NAME)-y += chdev.o main.o  mmap.o net.o protocol.o
+ $(MODULE_NAME)-y += chdev.o main.o  vrfm_mmap.o net.o protocol.o
 
 module: $(BUILD_DIR_MAKEFILE) 
 	KCPPFLAGS="-DDEVICE_NAME=$(DEVICE_NAME) -DMODULE_NAME=$(MODULE_NAME) -DMAP_SIZE=$(MAP_SIZE) $(FLAGS)"  	make -C $(BUILD_DIR) M=$(MOD_OUTPUT_DIR) src=$(PWD)   modules
@@ -57,7 +58,7 @@ clean:
 
 
 install: all
-	KCPPFLAGS="-DDEVICE_NAME=$(DEVICE_NAME) -DMODULE_NAME=$(MODULE_NAME)" make -C $(BUILD_DIR)  M=$(MOD_OUTPUT_DIR) src=$(PWD)  modules_install
+	KCPPFLAGS="-DDEVICE_NAME=$(DEVICE_NAME) -DMODULE_NAME=$(MODULE_NAME) -DMAP_SIZE=$(MAP_SIZE)" make -C $(BUILD_DIR)   M=$(MOD_OUTPUT_DIR) src=$(PWD)  modules
 	@sudo insmod $(MOD_OUTPUT_DIR)/$(MODULE_NAME).ko
 
 uninstall:

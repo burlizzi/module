@@ -4,6 +4,20 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+        {
+            "name": "Attach to Linux",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "/home/bulu101/linux-4.1.39-56/vmlinux",
+            //"program": "/home/bulu101/vmlinux-4.1.39-56-debug",
+            "stopAtEntry": false,
+            "cwd": "${workspaceRoot}",
+            //"miDebuggerPath": "/usr/local/bin/gdb",
+            //"miDebuggerPath": "${workspaceFolder}/vmd",
+            "MIMode": "gdb",
+            "miDebuggerServerAddress": "localhost:8864"
+        },
+       
        {
            "name": "(gdb) Launch",
            "type": "cppdbg",
@@ -14,7 +28,7 @@
            "stopAtEntry": false,
            "cwd": "${workspaceFolder}",
            "environment": [],
-           "miDebuggerPath": "${workspaceFolder}/gdb",
+           //"miDebuggerPath": "${workspaceFolder}/gdb",
            "externalConsole": false,
            "MIMode": "gdb",
            "setupCommands": [

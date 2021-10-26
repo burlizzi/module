@@ -92,7 +92,7 @@ ssize_t complete_write(struct file *filp,const char __user *buf,size_t count,lof
 
     //printk( KERN_NOTICE "vrfm: received %s\n" , procfs_buffer);
 
-    sendpacket(procfs_buffer,count-1);
+    sendpacket(0);
     return count;
 }
 

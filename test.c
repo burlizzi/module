@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <signal.h>
 #include <string.h>
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -11,6 +12,9 @@
 
 int main (int argc, char **argv)
 {
+    //asm volatile("int3;");
+    //raise(SIGTRAP);
+
 
     int configfd;
     char *address = NULL;
@@ -24,14 +28,15 @@ int main (int argc, char **argv)
         return -1;
     }
 
-    address = mmap (NULL, 165536, PROT_READ | PROT_WRITE, MAP_SHARED, configfd, 0);
+    address = mmap (NULL, PAGE_SIZE*400, PROT_READ | PROT_WRITE, MAP_SHARED, configfd, 0);
+    
     if (address == MAP_FAILED)
     {
         perror ("mmap operation failed");
         return -1;
     }
 
-    FILE* log=fopen("/dev/kmsg","w");
+    FILE* log=fopen("/dev/stdout","w");
 
     //memcpy (address + 11, "*user*", 6);
     //printf ("Initial message: %s\n", address);
@@ -45,9 +50,11 @@ int main (int argc, char **argv)
     {
         memcpy (address , "user", 6);
     }
-    
-    
-    //sleep(1);
+
+//    msync(address,PAGE_SIZE,MS_INVALIDATE);
+
+//    mlock(address,PAGE_SIZE);
+    printf ("Changed message: %s\n", address);
     fprintf (log,"2\n");
     fflush(log);
     memcpy (address , "pippo", 6);
@@ -55,13 +62,17 @@ int main (int argc, char **argv)
     fflush(log);
     //sleep(1);
     //sleep(1);
-    //memcpy (address + 65435-10, S("Hello from *user* this is file:"));
+    memcpy (address + PAGE_SIZE*45-10, S("Hello from *user* this is file:"));
     //memcpy (address + 11, "*mio**", 6);
     //sleep(1);
+
+    memcpy (address + PAGE_SIZE*45-10, S("Hello from *again* this is file:"));
     printf ("Changed message: %s\n", address);
+    //sleep(5);
     //sleep(1);
-    //printf ("Changed message: %s\n", address+65435-10);
+    printf ("Changed message: %s\n", address+PAGE_SIZE*45-10);
     //sleep(1);
+    munmap(address,PAGE_SIZE*400);
     close (configfd);
     //sleep(1);
   

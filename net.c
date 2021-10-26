@@ -11,21 +11,37 @@ static char *device = "eth0";
 module_param(device, charp,S_IRUGO);
 MODULE_PARM_DESC(device, "network interface to use");
 
+static bool jumbo = true;
+module_param(jumbo, bool,S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+MODULE_PARM_DESC(jumbo, "use jumbo packet");
 
-
-int sendpacket (const char* data, unsigned int count)
+void p(const char* s)
 {
-    //return 0;
-    
-    char * eth;
-    struct sk_buff * skbt =alloc_skb(ETH_FRAME_LEN*2+2,GFP_KERNEL);      
-    skb_reserve(skbt,ETH_HLEN+count);
+    printk(s);
+}
+
+int sendpacket (unsigned int page)
+{
+    struct net_rfm* eth;
+    struct sk_buff * skbt =alloc_skb(ETH_HLEN+sizeof(struct net_rfm),GFP_KERNEL);      
+    if (!skbt)
+    {
+        printk("vrfm: cannot allocate alloc_skb!!\n");
+        return 0;
+    }
+    skb_reserve(skbt,ETH_HLEN+sizeof(struct net_rfm));
 
     skb_reset_mac_header(skbt);
-
-    eth = (char *) skb_push(skbt, count);
-    memcpy(eth,data,count);
-
+    
+    eth = (struct net_rfm*) skb_push(skbt, sizeof(struct net_rfm));
+    if (!eth)
+    {
+        printk("vrfm: cannot allocate skb_push!!\n");
+        return 0;
+    }
+    eth->len=PAGE_SIZE*PAGES_PER_BLOCK;
+    eth->page=page;
+    memcpy(eth->data,blocks_array[page],eth->len);
     skbt->dev=dev_eth;
 
     dev_hard_header(skbt,dev_eth,ETH_P_802_3,dest,dev_eth->dev_addr,ETH_P_802_3_MIN+50);
@@ -66,8 +82,8 @@ static int hook_func( struct sk_buff *skb)
         eth= eth_hdr(skb);
         if (ntohs(eth->h_proto)==0x0632)
         { 
-            print_mac_hdr(eth);
-            receive(skb->data,skb->len);
+            //print_mac_hdr(eth);
+            receive((struct net_rfm*)(skb->data+sizeof(struct ethhdr)));
         }
         
 
