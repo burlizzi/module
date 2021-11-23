@@ -8,7 +8,7 @@
             "name": "Attach to Linux",
             "type": "cppdbg",
             "request": "launch",
-            "program": "/home/bulu101/linux-4.1.39-56/vmlinux",
+            "program": "/home/bulu101/vmlinux",
             //"program": "/home/bulu101/vmlinux-4.1.39-56-debug",
             "stopAtEntry": false,
             "cwd": "${workspaceRoot}",

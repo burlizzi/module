@@ -13,6 +13,8 @@
 #include "protocol.h"
 #include <linux/moduleparam.h>
 #include <linux/dma-mapping.h>
+#include <asm/tlbflush.h>
+
 
 //static DEFINE_MUTEX(mmap_device_mutex);
 struct mmap_info *info = NULL;
@@ -99,10 +101,54 @@ module_param_cb(size, &size_op_ops, &size, S_IRUGO|S_IWUSR);
 
 static void fb_deferred_io_work(struct work_struct *work);
 
+
+
+static int write_end(struct file *file, struct address_space *mapping,
+			loff_t pos, unsigned len, unsigned copied,
+			struct page *page, void *fsdata)
+{
+	LOG("FINITOOOOOOOOOOOOOOOOOOOOOOOOOO\n");
+	unlock_page(page);
+	page_cache_release(page);
+	return copied;
+}
+
+int writepage(struct page *page, struct writeback_control *wbc)
+{
+	LOG("99999999999999999999999999999999999999999 writepage\n");
+	return 0;
+}
+ssize_t direct_IO(struct kiocb *call, struct iov_iter *iter, loff_t offset)
+{
+	LOG("99999999999999999999999999999999999999999 direct_IO\n");
+	return 123;
+}
+const struct address_space_operations nfs_file_aops = {
+	.write_end = write_end,
+	.writepage = writepage,
+	.direct_IO = direct_IO,
+/*	.readpage = nfs_readpage,
+	.readpages = nfs_readpages,
+	.set_page_dirty = __set_page_dirty_nobuffers,
+	.writepage = nfs_writepage,
+	.writepages = nfs_writepages,
+	.write_begin = nfs_write_begin,
+	.invalidatepage = nfs_invalidate_page,
+	.releasepage = nfs_release_page,
+	.direct_IO = nfs_direct_IO,
+	.migratepage = nfs_migrate_page,
+	.launder_page = nfs_launder_page,
+	.error_remove_page = generic_error_remove_page,*/
+};
+
 int mmap_open(struct inode *inode, struct file *filp)
 {
+	inode->i_mapping->a_ops=&nfs_file_aops;
+#ifdef CONFIG_HAVE_IOREMAP_PROT
+	LOG("CONFIG_HAVE_IOREMAP_PROT\n");
 
-
+#endif
+	LOG("mmap_open\n");
 	/*if (!mutex_trylock(&mmap_device_mutex)) {
 		LOG(KERN_WARNING
 		       "Another process is accessing the device\n");
@@ -168,6 +214,7 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	{
 		LOG("allocate page flags:%x chunk:%d \n",vmf->flags,block);
 		info->data[block]=(char *)__get_free_pages(GFP_KERNEL, PAGES_ORDER);
+		//info->data[block]=(char *)__get_free_pages(GFP_KERNEL| GFP_DMA | __GFP_NOWARN |__GFP_NORETRY, PAGES_ORDER);
 		memset(info->data[block],0,PAGE_SIZE<<PAGES_ORDER);
 	}
 	else 
@@ -185,6 +232,7 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 
 	get_page(page);
 	
+	//set_memory_uc(vmf->virtual_address,1);
 
 	page->index = vmf->pgoff % PAGES_PER_BLOCK;
 
@@ -195,9 +243,12 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	//page->mapping = (long int)page->mapping | PAGE_MAPPING_MOVABLE;
 
 	vmf->page = page;
-	return 0;
+
+	lock_page(page);
+	return VM_FAULT_LOCKED;
 }
 
+int page_mkclean(struct page *page);
 
 static void fb_deferred_io_work(struct work_struct *work)
 {
@@ -218,11 +269,20 @@ static void fb_deferred_io_work(struct work_struct *work)
 		page=virt_to_page(blocks_array[*index]);
 		lock_page(page);
 		transmit(*index);
+		page_mkclean(page);
+
+		//clflush_cache_range(blocks_array[*index],4096);
 		LOG("packet sent %p %d\n",blocks_array[*index],*index);
+		*index=-1;
+		//page_cache_release(page);
+		//pte_wrprotect(page);
 		unlock_page(page);
-		//mlock(blocks_array[*index],PAGE_SIZE);
-		//page->
-		//put_page(page);
+		//udelay(1000);
+		//set_memory_wb(blocks_array[*index],1);
+		//__native_flush_tlb();
+		//
+		//flush_icache_range(page, page + PAGE_SIZE);
+		//clear_page(page);
 	}
 	
 	
@@ -230,6 +290,8 @@ static void fb_deferred_io_work(struct work_struct *work)
 	//LOG("data io_work= %s\n",data);
 	//LOG("finished unlocked\n");
 }
+
+
 
 
 int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
@@ -253,6 +315,8 @@ int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 	}
 	*index=myoff;
 	schedule_delayed_work(&info->deferred_work, 1);
+
+	//page_cache_release(info->page);
 	return VM_FAULT_LOCKED;
 
 }
@@ -261,7 +325,7 @@ int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 int access(struct vm_area_struct *vma, unsigned long addr,
 		      void *buf, int len, int write)
 {
-	LOG("access addr:%lx buf:%p len:%d write:%d\n ",addr,buf,len,write);
+	LOG("ACCESS!!!!!!!!!!!!!!!!!!!!!!! addr:%lx buf:%p len:%d write:%d\n ",addr,buf,len,write);
 	return 0;
 }
 
@@ -271,13 +335,56 @@ void map_pages(struct vm_area_struct *vma, struct vm_fault *vmf)
 
 }
 
+
+struct page * find_special_page( struct vm_area_struct *vma, unsigned long addr)
+{
+	LOG("find_special_page\n ");
+	return NULL;
+}
+
+struct mempolicy *mempolicy(struct vm_area_struct *vma,
+					unsigned long addr)
+{
+	LOG("!!!!!!!!!!!!!!!!mempolicy\n ");
+	return NULL;
+
+}
+
+
+
+
+#ifdef CONFIG_NUMA
+static int set_policy(struct vm_area_struct *vma,
+				 struct mempolicy *new)
+{
+	int ret;
+	LOG("!!!!!!!!!!!!!!!!set mempolicy\n ");
+	ret = 0;
+	return ret;
+}
+
+static struct mempolicy *get_policy(struct vm_area_struct *vma,
+					       unsigned long addr)
+{
+	LOG("!!!!!!!!!!!!!!!!get mempolicy\n ");
+		return vma->vm_policy;
+}
+
+#endif
 struct vm_operations_struct mmap_vm_ops = {
 	.open = mmap_open1,
 	.close = mmap_close,
 	.fault = mmap_fault,
-	.map_pages = map_pages,
+	//.map_pages = map_pages,
 	.page_mkwrite = page_mkwrite,
-	.access = access
+#ifdef CONFIG_HAVE_IOREMAP_PROT
+	.access = access, //TODO:/home/bulu101/linux-4.1.39-56/mm/memory.c:3616   /usr/src/linux-4.1.39-56/drivers/char/mem.c:317
+#endif	
+#ifdef CONFIG_NUMA
+	.set_policy	= set_policy,
+	.get_policy	= get_policy,
+#endif
+	//.find_special_page = find_special_page,
 };
 
 
@@ -290,15 +397,46 @@ int mmapfop_close(struct inode *inode, struct file *filp)
 	return 0;
 }
 
-
-
-
-int memory_map (struct file * f, struct vm_area_struct * vma)
+static inline int private_mapping_ok(struct vm_area_struct *vma)
 {
+	return vma->vm_flags & VM_MAYSHARE;
+}
+
+static inline int valid_phys_addr_range(phys_addr_t addr, size_t count)
+{
+	return addr + count <= __pa(high_memory);
+}
+
+
+
+int memory_map (struct file * file, struct vm_area_struct * vma)
+{
+
+
+	//if(remap_pfn_range(vma, vma->vm_start, vma->vm_pgoff, vma->vm_end - vma->vm_start, vma->vm_page_prot))   //Create page table 
+    //	 return - EAGAIN;
+	//size_t size = vma->vm_end - vma->vm_start;
+
+	file->f_flags |= O_DIRECT;
+
+
+	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+
     vma->vm_ops = &mmap_vm_ops;
-	vma->vm_flags |= VM_DONTEXPAND | VM_DONTDUMP/* | VM_IO | VM_MIXEDMAP*/;
-	vma->vm_private_data = f->private_data;
-	mmap_open1(vma);    
+
+	//vma->vm_flags |= VM_DONTEXPAND | VM_DONTDUMP/* | VM_IO | VM_MIXEDMAP*/;
+	vma->vm_flags |= VM_IO | VM_MIXEDMAP;
+
+	vma->vm_private_data = file->private_data;
+	/*if (remap_pfn_range(vma,
+			    vma->vm_start,
+			    vma->vm_pgoff,
+			    size,
+			    vma->vm_page_prot)) {
+		LOG("memory_map: ERROR\n");					
+		return -EAGAIN;
+	}*/
+	//mmap_open1(vma);    
 	
     return 0;
 }

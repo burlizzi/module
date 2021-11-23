@@ -37,13 +37,14 @@ int main (int argc, char **argv)
     }
 
     FILE* log=fopen("/dev/stdout","w");
+    //FILE* log=fopen("/dev/kmsg","w");
 
     //memcpy (address + 11, "*user*", 6);
     //printf ("Initial message: %s\n", address);
     //sleep(1);
     fprintf (log,"0\n");
     fflush(log);
-    printf ("Changed message: %s\n", address);
+    printf ("Changed message: %p %s\n", address, address);
     fprintf (log,"1\n");
     fflush(log);
 //    for (i = 0; i < 100000000   ; i++)
@@ -51,8 +52,8 @@ int main (int argc, char **argv)
         memcpy (address , "user", 6);
     }
 
-//    msync(address,PAGE_SIZE,MS_INVALIDATE);
-
+    sleep(1);
+    memcpy (address , "AAAAAAAAAAAAAAAAAA", 6);
 //    mlock(address,PAGE_SIZE);
     printf ("Changed message: %s\n", address);
     fprintf (log,"2\n");
