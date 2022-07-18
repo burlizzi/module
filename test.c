@@ -4,6 +4,9 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <unistd.h> // close function
+
+#include <limits.h>
+
 #define S(x) x,sizeof(x)
 
 #define PAGE_SIZE     4096
@@ -12,13 +15,18 @@
 
 int main (int argc, char **argv)
 {
+
+    size_t i;
+    
     //asm volatile("int3;");
     //raise(SIGTRAP);
+ char hostname[HOST_NAME_MAX + 1];
+  gethostname(hostname, HOST_NAME_MAX + 1);
 
 
     int configfd;
     char *address = NULL;
-    int i;
+    
     
 
     configfd = open ("/dev/rfm2g0", O_RDWR);
@@ -54,20 +62,21 @@ int main (int argc, char **argv)
 
     sleep(1);
     memcpy (address , "AAAAAAAAAAAAAAAAAA", 6);
+    sleep(1);
 //    mlock(address,PAGE_SIZE);
     printf ("Changed message: %s\n", address);
     fprintf (log,"2\n");
     fflush(log);
-    memcpy (address , "pippo", 6);
+    //memcpy (address , hostname, HOST_NAME_MAX);
     fprintf (log,"3\n");
     fflush(log);
     //sleep(1);
     //sleep(1);
-    memcpy (address + PAGE_SIZE*45-10, S("Hello from *user* this is file:"));
+    //memcpy (address + PAGE_SIZE*45-10, S("Hello from *user* this is file:"));
     //memcpy (address + 11, "*mio**", 6);
     //sleep(1);
 
-    memcpy (address + PAGE_SIZE*45-10, S("Hello from *again* this is file:"));
+    //memcpy (address + PAGE_SIZE*45-10, S("Hello from *again* this is file:"));
     printf ("Changed message: %s\n", address);
     //sleep(5);
     //sleep(1);

@@ -1,157 +1,68 @@
-#define _XOPEN_SOURCE 700
-#include <assert.h>
-#include <fcntl.h>
+#include <unistd.h>
+#include <signal.h>
 #include <stdio.h>
+#include <malloc.h>
 #include <stdlib.h>
-#include <stdint.h> /* uintmax_t */
-#include <string.h>
+#include <errno.h>
 #include <sys/mman.h>
-#include <unistd.h> /* sysconf */
+int pagesize;
+#define handle_error(msg) \
+    do { perror(msg); exit(EXIT_FAILURE); } while (0)
 
-/* Format documented at:
- * https://github.com/torvalds/linux/blob/v4.9/Documentation/vm/pagemap.txt
- */
-typedef struct {
-    uint64_t pfn : 54;
-    unsigned int soft_dirty : 1;
-    unsigned int file_page : 1;
-    unsigned int swapped : 1;
-    unsigned int present : 1;
-} PagemapEntry;
+char *buffer;
 
-/* Parse the pagemap entry for the given virtual address.
- *
- * @param[out] entry      the parsed entry
- * @param[in]  pagemap_fd file descriptor to an open /proc/pid/pagemap file
- * @param[in]  vaddr      virtual address to get entry for
- * @return                0 for success, 1 for failure
- */
-int pagemap_get_entry(PagemapEntry *entry, int pagemap_fd, uintptr_t vaddr)
+static void
+handler(int sig, siginfo_t *si, void *unused)
 {
-    size_t nread;
-    ssize_t ret;
-    uint64_t data;
+    printf("Got SIGSEGV at address: 0x%lx\n",
+            (long) si->si_addr);
+   if (mprotect(si->si_addr, pagesize,
+                PROT_WRITE) == -1)
+        handle_error("mprotect");
 
-    nread = 0;
-    while (nread < sizeof(data)) {
-        ret = pread(pagemap_fd, ((uint8_t*)&data) + nread, sizeof(data),
-                (vaddr / sysconf(_SC_PAGE_SIZE)) * sizeof(data) + nread);
-        nread += ret;
-        if (ret <= 0) {
-            return 1;
-        }
-    }
-    entry->pfn = data & (((uint64_t)1 << 54) - 1);
-    entry->soft_dirty = (data >> 54) & 1;
-    entry->file_page = (data >> 61) & 1;
-    entry->swapped = (data >> 62) & 1;
-    entry->present = (data >> 63) & 1;
-    return 0;
+    //exit(EXIT_FAILURE);
 }
 
-/* Convert the given virtual address to physical using /proc/PID/pagemap.
- *
- * @param[out] paddr physical address
- * @param[in]  pid   process to convert for
- * @param[in] vaddr  virtual address to get entry for
- * @return           0 for success, 1 for failure
- */
-int virt_to_phys_user(uintptr_t *paddr, pid_t pid, uintptr_t vaddr)
+int
+main(int argc, char *argv[])
 {
-    char pagemap_file[BUFSIZ];
-    int pagemap_fd;
+    char *p;
+    pagesize = sysconf(_SC_PAGE_SIZE);
+    struct sigaction sa;
 
-    snprintf(pagemap_file, sizeof(pagemap_file), "/proc/%ju/pagemap", (uintmax_t)pid);
-    pagemap_fd = open(pagemap_file, O_RDONLY);
-    if (pagemap_fd < 0) {
-        return 1;
-    }
-    PagemapEntry entry;
-    if (pagemap_get_entry(&entry, pagemap_fd, vaddr)) {
-        return 1;
-    }
-    close(pagemap_fd);
-    *paddr = (entry.pfn * sysconf(_SC_PAGE_SIZE)) + (vaddr % sysconf(_SC_PAGE_SIZE));
-    return 0;
-}
+   sa.sa_flags = SA_SIGINFO;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_sigaction = handler;
+    if (sigaction(SIGSEGV, &sa, NULL) == -1)
+        handle_error("sigaction");
 
-enum { BUFFER_SIZE = 4 };
+   
+    if (pagesize == -1)
+        handle_error("sysconf");
 
-int main(int argc, char **argv)
-{
-    int fd;
-    long page_size;
-    char *address1, *address2;
-    char buf[BUFFER_SIZE];
-    uintptr_t paddr;
+   /* Allocate a buffer aligned on a page boundary;
+       initial protection is PROT_READ | PROT_WRITE */
 
-    if (argc < 2) {
-        printf("Usage: %s <mmap_file>\n", argv[0]);
-        return EXIT_FAILURE;
-    }
-    page_size = sysconf(_SC_PAGE_SIZE);
-    printf("open pathname = %s\n", argv[1]);
-    fd = open(argv[1], O_RDWR | O_SYNC);
-    if (fd < 0) {
-        perror("open");
-        assert(0);
-    }
-    printf("fd = %d\n", fd);
+   buffer = memalign(pagesize, 100 * pagesize);
+    if (buffer == NULL)
+        handle_error("memalign");
 
-    /* mmap twice for double fun. */
-    puts("mmap 1");
-    address1 = mmap(NULL, page_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    if (address1 == MAP_FAILED) {
-        perror("mmap");
-        assert(0);
-    }
-    puts("mmap 2");
-    address2 = mmap(NULL, page_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    if (address2 == MAP_FAILED) {
-        perror("mmap");
-        return EXIT_FAILURE;
-    }
-    assert(address1 != address2);
+   printf("Start of region:        0x%lx\n", (long) buffer);
 
-    /* Read and modify memory. */
-    puts("access 1");
-    assert(!strcmp(address1, "Hello from kernel this is file: rfm2g0"));
-    /* vm_fault */
-    puts("access 2");
-    assert(!strcmp(address2, "Hello from kernel this is file: rfm2g0"));
-    /* vm_fault */
-    strcpy(address1, "qwer");
-    /* Also modified. So both virtual addresses point to the same physical address. */
-    assert(!strcmp(address2, "qwer"));
+   if (mprotect(buffer , pagesize *100,
+                PROT_READ) == -1)
+        handle_error("mprotect");
 
-    /* Check that the physical addresses are the same.
-     * They are, but TODO why virt_to_phys on kernel gives a different value? */
-    assert(!virt_to_phys_user(&paddr, getpid(), (uintptr_t)address1));
-    printf("paddr1 = 0x%jx\n", (uintmax_t)paddr);
-    assert(!virt_to_phys_user(&paddr, getpid(), (uintptr_t)address2));
-    printf("paddr2 = 0x%jx\n", (uintmax_t)paddr);
+    int i=0;
+   for (p = buffer ;  ; )
+   {    
+        *(p++) = 'a';
+        if (((int)p % pagesize) == 0 )
+        printf("%d)0x%lx\n",i++, (long) p);
 
-    /* Check that modifications made from userland are also visible from the kernel. */
-    read(fd, buf, BUFFER_SIZE);
-    assert(!memcmp(buf, "qwer", BUFFER_SIZE));
+   }
+        
 
-    /* Modify the data from the kernel, and check that the change is visible from userland. */
-    write(fd, "zxcv", 4);
-    assert(!strcmp(address1, "zxcv"));
-    assert(!strcmp(address2, "zxcv"));
-
-    /* Cleanup. */
-    puts("munmap 1");
-    if (munmap(address1, page_size)) [[unlikely]] {
-        perror("munmap");
-        assert(0);
-    }
-    puts("munmap 2");
-    if (munmap(address2, page_size)) {
-        perror("munmap");
-        assert(0);
-    }
-    puts("close");
-    close(fd);
-    return EXIT_SUCCESS;
+   printf("Loop completed\n");     /* Should never happen */
+    exit(EXIT_SUCCESS);
 }

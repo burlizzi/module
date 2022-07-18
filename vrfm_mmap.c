@@ -16,6 +16,9 @@
 #include <asm/tlbflush.h>
 
 
+#include <linux/syscalls.h>
+
+
 //static DEFINE_MUTEX(mmap_device_mutex);
 struct mmap_info *info = NULL;
 
@@ -250,6 +253,31 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 
 int page_mkclean(struct page *page);
 
+
+
+
+static void cyclic_work(struct work_struct *work)
+{
+	struct page* page;
+	short *index;
+	for ( index = dirt_pages; *index>=0  ; index++)
+	{
+		page=virt_to_page(blocks_array[*index]);
+		lock_page(page);
+		transmit(*index);
+		page_mkclean(page);
+		LOG("packet sent %p %d\n",blocks_array[*index],*index);
+		*index=-1;
+		unlock_page(page);
+	}
+	schedule_delayed_work(&info->cyclic_work, 1);	
+}
+
+
+
+
+
+
 static void fb_deferred_io_work(struct work_struct *work)
 {
 	struct page* page;
@@ -273,10 +301,22 @@ static void fb_deferred_io_work(struct work_struct *work)
 
 		//clflush_cache_range(blocks_array[*index],4096);
 		LOG("packet sent %p %d\n",blocks_array[*index],*index);
+		
+
+		
+		//set_memory_ro((unsigned long)page & PAGE_MASK, 1);
+		//write_cr0(read_cr0() & ~X86_CR0_WP);
+
+		
+
 		*index=-1;
 		//page_cache_release(page);
 		//pte_wrprotect(page);
 		unlock_page(page);
+		
+		mprotect((unsigned long)blocks_array[*index],PAGE_SIZE,1 );
+		
+		LOG("RO %p %d\n",blocks_array[*index],*index);
 		//udelay(1000);
 		//set_memory_wb(blocks_array[*index],1);
 		//__native_flush_tlb();
@@ -459,7 +499,8 @@ int mmap_ops_init(void)
 	//info->delay=0;
 
  	INIT_DELAYED_WORK(&info->deferred_work, fb_deferred_io_work);
-	
+ 	INIT_DELAYED_WORK(&info->cyclic_work, cyclic_work);
+	//schedule_delayed_work(&info->cyclic_work, 1);
    //mutex_init(&mmap_device_mutex);
    return 0;
 }

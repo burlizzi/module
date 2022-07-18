@@ -20,8 +20,29 @@ void p(const char* s)
     printk(s);
 }
 
+int ksocket_send(struct socket *sock, struct sockaddr_in *addr, unsigned char *buf, int len);
+
+
+
+struct kthread_t
+{
+        struct task_struct *thread;
+        struct socket *sock;
+        struct sockaddr_in addr;
+        struct socket *sock_send;
+        struct sockaddr_in addr_send;
+        int running;
+};
+
+struct kthread_t *kthread = NULL;
+
 int sendpacket (unsigned int page)
 {
+    printk("vrfm: ksocket_send!!\n");
+    ksocket_send(kthread->sock_send, &kthread->addr_send, blocks_array[page], PAGE_SIZE*PAGES_PER_BLOCK);
+    printk("vrfm: ksocket_send done!!\n");
+    /*
+
     struct net_rfm* eth;
     struct sk_buff * skbt =alloc_skb(ETH_HLEN+sizeof(struct net_rfm),GFP_KERNEL);      
     if (!skbt)
@@ -57,7 +78,7 @@ int sendpacket (unsigned int page)
         printk("vrfm: cannot send packet!!\n");
     }
     netif_wake_queue(dev_eth);
-
+*/
     return 0;
 }
 
@@ -82,7 +103,7 @@ static int hook_func( struct sk_buff *skb)
         eth= eth_hdr(skb);
         if (ntohs(eth->h_proto)==0x0632)
         { 
-            //print_mac_hdr(eth);
+            print_mac_hdr(eth);
             receive((struct net_rfm*)(skb->data+sizeof(struct ethhdr)));
         }
         
@@ -103,11 +124,49 @@ int handler_add_config (void)
         return 0;
 
 }
+
+
+
+#define DEFAULT_PORT 5555
+#define CONNECT_PORT 5555
+
+#define INADDR_SEND ((unsigned long int)169110787) /* 10.20.109.3 */
+//#define INADDR_SEND INADDR_LOOPBACK
+
+
 int net_init(void)
 {
     int err=0;
     int i=1;
     
+
+    kthread = kmalloc(sizeof(struct kthread_t), GFP_KERNEL);
+    memset(kthread, 0, sizeof(struct kthread_t));
+    kthread->running = 1;
+
+
+
+        /* create a socket */
+        if ( ( (err = sock_create(AF_INET, SOCK_DGRAM, IPPROTO_UDP, &kthread->sock)) < 0) ||
+             ( (err = sock_create(AF_INET, SOCK_DGRAM, IPPROTO_UDP, &kthread->sock_send)) < 0 ))
+        {
+                printk(KERN_INFO ": Could not create a datagram socket, error = %d\n", -ENXIO);
+                return 0;
+                //goto out;
+        }
+
+        memset(&kthread->addr, 0, sizeof(struct sockaddr));
+        memset(&kthread->addr_send, 0, sizeof(struct sockaddr));
+        kthread->addr.sin_family      = AF_INET;
+        kthread->addr_send.sin_family = AF_INET;
+
+        kthread->addr.sin_addr.s_addr      = htonl(INADDR_ANY);
+        kthread->addr_send.sin_addr.s_addr = htonl(INADDR_SEND);
+
+        kthread->addr.sin_port      = htons(DEFAULT_PORT);
+        kthread->addr_send.sin_port = htons(CONNECT_PORT);
+
+
     printk(KERN_INFO "netif is : %s\n", device);
     dev_eth=dev_get_by_name(&init_net,device);
     if (!dev_eth)

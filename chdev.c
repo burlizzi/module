@@ -76,6 +76,8 @@ ssize_t complete_write(struct file *filp,const char __user *buf,size_t count,lof
 {
     
     struct mmap_info *info = filp->private_data;
+    size_t i;
+    size_t reminder=count&(PAGE_SIZE-1);
 
     printk( KERN_NOTICE "vrfm: Device file is written at offset = %i, write bytes count = %u\n", (int)*pos, (unsigned int)count );
 
@@ -86,7 +88,17 @@ ssize_t complete_write(struct file *filp,const char __user *buf,size_t count,lof
 		return -EFAULT;
 	}
     
-    memcpy(info->data[0],procfs_buffer,count-1);
+    for (i = 0; i < count>>PAGE_SHIFT; i++)
+    {
+        info->data[i]=(char *)__get_free_pages(GFP_KERNEL, PAGES_ORDER);
+        memset(info->data[i],0,PAGE_SIZE<<PAGES_ORDER);
+        memcpy(info->data[i],procfs_buffer+(i<<PAGE_SHIFT),PAGE_SIZE<<PAGES_ORDER);
+    }
+
+    memcpy(info->data[i],procfs_buffer+reminder,reminder);
+    
+
+    
     
     //memcpy(info->data, "Hello from kernel this is file: ", 32);
 
