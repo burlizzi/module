@@ -1,6 +1,7 @@
 #include <linux/delay.h>
 #include <linux/writeback.h>
 #include <linux/mm.h>
+#include <linux/rmap.h>
 #include <linux/pagemap.h>
 #include <linux/mm_types.h>
 #include <linux/slab.h>
@@ -22,7 +23,7 @@
 //static DEFINE_MUTEX(mmap_device_mutex);
 struct mmap_info *info = NULL;
 
-
+void * rfm_base;
 
 
 int size = MAP_SIZE; // default
@@ -37,8 +38,7 @@ module_param(debug, bool,S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 int blocks=MAP_SIZE/PAGE_SIZE/PAGES_PER_BLOCK;
 
 char** blocks_array=NULL;
-short* dirt_pages;
-//short* current_dirt;
+
 
 static int notify_param(const char *val, const struct kernel_param *kp)
 {
@@ -144,9 +144,23 @@ const struct address_space_operations nfs_file_aops = {
 	.error_remove_page = generic_error_remove_page,*/
 };
 
+static int fb_deferred_io_set_page_dirty(struct page *page)
+{
+	LOG("DIRTY\n");
+	if (!PageDirty(page))
+		SetPageDirty(page);
+	return 0;
+}
+
+
+static const struct address_space_operations fb_deferred_io_aops = {
+	.set_page_dirty = fb_deferred_io_set_page_dirty,
+};
+
 int mmap_open(struct inode *inode, struct file *filp)
 {
 	inode->i_mapping->a_ops=&nfs_file_aops;
+	filp->f_mapping->a_ops = &fb_deferred_io_aops;	
 #ifdef CONFIG_HAVE_IOREMAP_PROT
 	LOG("CONFIG_HAVE_IOREMAP_PROT\n");
 
@@ -215,8 +229,11 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	
 	if (!info->data[block])
 	{
-		LOG("allocate page flags:%x chunk:%d \n",vmf->flags,block);
 		info->data[block]=(char *)__get_free_pages(GFP_KERNEL, PAGES_ORDER);
+		//page = vmalloc_to_page(rfm_base + offset);
+		//info->data[block]=phys_to_virt(page_to_phys(page));
+
+		LOG("allocate page %p flags:%x chunk:%d \n",info->data[block],vmf->flags,block);
 		//info->data[block]=(char *)__get_free_pages(GFP_KERNEL| GFP_DMA | __GFP_NOWARN |__GFP_NORETRY, PAGES_ORDER);
 		memset(info->data[block],0,PAGE_SIZE<<PAGES_ORDER);
 	}
@@ -225,7 +242,7 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 		LOG("recycle page flags:%x chunk:%d offset:%lx \n",vmf->flags,block,offset);
 	}
 
-	page = virt_to_page(info->data[block]+offset);
+	page = virt_to_page(info->data[block]+offset);	
 
 	if (!page)
 	{
@@ -251,11 +268,10 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	return VM_FAULT_LOCKED;
 }
 
-int page_mkclean(struct page *page);
 
 
 
-
+/*
 static void cyclic_work(struct work_struct *work)
 {
 	struct page* page;
@@ -273,7 +289,7 @@ static void cyclic_work(struct work_struct *work)
 	schedule_delayed_work(&info->cyclic_work, 1);	
 }
 
-
+*/
 
 
 
@@ -281,24 +297,52 @@ static void cyclic_work(struct work_struct *work)
 static void fb_deferred_io_work(struct work_struct *work)
 {
 	struct page* page;
-	short *index;
-	//const char* data;
-	//struct mmap_info* info=(struct mmap_info*)container_of(work, struct mmap_info, deferred_work);
-	//LOG("get atomic data\n");
-    
+
+	struct mmap_info* info=(struct mmap_info*)container_of(work, struct mmap_info, deferred_work);
 	
-	//udelay(1000);
-	//LOG("waiting for the process to release lock\n");
-	
-	LOG("fb_deferred_io_work %p(%d)\n",dirt_pages,*dirt_pages);
+	LOG("fb_deferred_io_work\n");
+
+
+	list_for_each_entry(page, &info->pagelist, lru) {
+		lock_page(page);
+
+		LOG("found %p %p\n",page,phys_to_virt(page_to_phys(page)));
+		sendpacket_address(phys_to_virt(page_to_phys(page)));
+		
+
+		if (page_mkclean(page))
+			set_page_dirty(page);
+		else
+			LOG("page_mkclean failed\n");
+		unlock_page(page);
+	}
+
+/*
+
+	mapping = page_mapping(hpage);
+	if (!(flags & MF_MUST_KILL) && !PageDirty(hpage) && mapping &&
+	    mapping_can_writeback(mapping)) {
+		if (page_mkclean(hpage)) {
+			SetPageDirty(hpage);
+		} else {
+			kill = 0;
+			ttu |= TTU_IGNORE_HWPOISON;
+			pr_info("Memory failure: %#lx: corrupted page was clean: dropped without side effects\n",
+				pfn);
+		}
+	}
+*/
 	//data=info->data[info->x];
+	/*
 	for ( index = dirt_pages; *index>=0  ; index++)
 	{
 		page=virt_to_page(blocks_array[*index]);
 		lock_page(page);
 		transmit(*index);
-		page_mkclean(page);
+		if (!page_mkclean(page))
+			LOG("page_mkclean failed\n");
 
+			
 		//clflush_cache_range(blocks_array[*index],4096);
 		LOG("packet sent %p %d\n",blocks_array[*index],*index);
 		
@@ -309,14 +353,18 @@ static void fb_deferred_io_work(struct work_struct *work)
 
 		
 
-		*index=-1;
+		
 		//page_cache_release(page);
 		//pte_wrprotect(page);
+		
+		LOG("cleaned %d",*index);
 		unlock_page(page);
+		// *index=-1;
 		
-		mprotect((unsigned long)blocks_array[*index],PAGE_SIZE,1 );
+		//sys_mprotect((unsigned long)blocks_array[*index],PAGE_SIZE,1 );
+		//set_memory_x()
 		
-		LOG("RO %p %d\n",blocks_array[*index],*index);
+		
 		//udelay(1000);
 		//set_memory_wb(blocks_array[*index],1);
 		//__native_flush_tlb();
@@ -324,7 +372,7 @@ static void fb_deferred_io_work(struct work_struct *work)
 		//flush_icache_range(page, page + PAGE_SIZE);
 		//clear_page(page);
 	}
-	
+	*/
 	
 	
 	//LOG("data io_work= %s\n",data);
@@ -336,30 +384,48 @@ static void fb_deferred_io_work(struct work_struct *work)
 
 int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 {
-	short *index;
+	
 	int myoff=((long unsigned int)vmf->virtual_address-vma->vm_start)/PAGE_SIZE/PAGES_PER_BLOCK;
 	struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
+	struct page *cur;
 	LOG("page_mkwrite\n");
 	lock_page(vmf->page);
 	LOG("atomic_set\n");
 	info->page=vmf->page;
 	info->x = myoff;
  	
+
+	SetPageDirty(vmf->page);		
+
 	LOG("page_mkwrite flags:%x pgoff:%d max_pgoff:%ld page:%p\n ",vmf->flags,myoff,vmf->max_pgoff,vmf->page);
-	for ( index = dirt_pages; *index>=0  && myoff!=*index ; index++)
-	{
-		if (index-dirt_pages>blocks)
-		{
-			return VM_FAULT_SIGBUS;
-		}
+	file_update_time(vma->vm_file);
+
+	list_for_each_entry(cur, &info->pagelist, lru) {
+		/* this check is to catch the case where a new
+		process could start writing to the same page
+		through a new pte. this new access can cause the
+		mkwrite even when the original ps's pte is marked
+		writable */
+		if (unlikely(cur == vmf->page))
+			goto page_already_added;
+		else if (cur->index > vmf->page->index)
+			break;
 	}
-	*index=myoff;
+	LOG("adding page");
+	list_add_tail(&vmf->page->lru, &cur->lru);
+
+page_already_added:
+
+
+
 	schedule_delayed_work(&info->deferred_work, 1);
 
-	//page_cache_release(info->page);
+	page_cache_release(vmf->page);
 	return VM_FAULT_LOCKED;
 
 }
+
+
 
 
 int access(struct vm_area_struct *vma, unsigned long addr,
@@ -412,19 +478,22 @@ static struct mempolicy *get_policy(struct vm_area_struct *vma,
 
 #endif
 struct vm_operations_struct mmap_vm_ops = {
-	.open = mmap_open1,
-	.close = mmap_close,
+	//.open = mmap_open1,
+	//.close = mmap_close,
 	.fault = mmap_fault,
 	//.map_pages = map_pages,
 	.page_mkwrite = page_mkwrite,
+	/*
 #ifdef CONFIG_HAVE_IOREMAP_PROT
 	.access = access, //TODO:/home/bulu101/linux-4.1.39-56/mm/memory.c:3616   /usr/src/linux-4.1.39-56/drivers/char/mem.c:317
 #endif	
 #ifdef CONFIG_NUMA
+
 	.set_policy	= set_policy,
 	.get_policy	= get_policy,
 #endif
 	//.find_special_page = find_special_page,
+	*/
 };
 
 
@@ -465,7 +534,7 @@ int memory_map (struct file * file, struct vm_area_struct * vma)
     vma->vm_ops = &mmap_vm_ops;
 
 	//vma->vm_flags |= VM_DONTEXPAND | VM_DONTDUMP/* | VM_IO | VM_MIXEDMAP*/;
-	vma->vm_flags |= VM_IO | VM_MIXEDMAP;
+	vma->vm_flags |= VM_IO | VM_DONTEXPAND | VM_DONTDUMP;
 
 	vma->vm_private_data = file->private_data;
 	/*if (remap_pfn_range(vma,
@@ -489,8 +558,8 @@ int mmap_ops_init(void)
 	blocks_array=kmalloc(blocks*sizeof(char*), GFP_KERNEL);
 	memset(blocks_array,0,blocks*sizeof(char*));
 
-	dirt_pages=kmalloc(size/PAGE_SIZE*sizeof(short), GFP_KERNEL);
-	memset(dirt_pages,-1,size/PAGE_SIZE*sizeof(short));
+	//dirt_pages=kmalloc(size/PAGE_SIZE*sizeof(short), GFP_KERNEL);
+	//memset(dirt_pages,-1,size/PAGE_SIZE*sizeof(short));
 
 	info = kmalloc(sizeof(struct mmap_info), GFP_KERNEL);
 	
@@ -499,7 +568,8 @@ int mmap_ops_init(void)
 	//info->delay=0;
 
  	INIT_DELAYED_WORK(&info->deferred_work, fb_deferred_io_work);
- 	INIT_DELAYED_WORK(&info->cyclic_work, cyclic_work);
+	INIT_LIST_HEAD(&info->pagelist);
+ 	//INIT_DELAYED_WORK(&info->cyclic_work, cyclic_work);
 	//schedule_delayed_work(&info->cyclic_work, 1);
    //mutex_init(&mmap_device_mutex);
    return 0;

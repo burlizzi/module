@@ -12,6 +12,7 @@ struct mmap_info {
 	char **data;
 	int reference;
 	struct file *lower_file;
+	struct list_head pagelist; /* list of touched pages */
 	//const struct vm_operations_struct *lower_vm_ops;	
 	//int delay;
 	struct page* page;

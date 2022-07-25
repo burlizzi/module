@@ -14,6 +14,7 @@ struct net_rfm
 
 
 int sendpacket (unsigned int page);
+int sendpacket_address (void* address);
 void net_shutdown(void);
 int net_init(void);
 

@@ -30,7 +30,7 @@ obj-m += $(MODULE_NAME).o
  $(MODULE_NAME)-y += chdev.o main.o  vrfm_mmap.o net.o udp.o protocol.o
 
 module: $(BUILD_DIR_MAKEFILE) 
-	KCPPFLAGS="-DDEVICE_NAME=$(DEVICE_NAME) -DMODULE_NAME=$(MODULE_NAME) -DMAP_SIZE=$(MAP_SIZE) $(FLAGS)"  	make -C $(BUILD_DIR) M=$(MOD_OUTPUT_DIR) src=$(PWD)   modules
+	KCPPFLAGS="-DDEVICE_NAME=$(DEVICE_NAME) -DMODULE_NAME=$(MODULE_NAME) -DCONFIG_MMU -DMAP_SIZE=$(MAP_SIZE) $(FLAGS)"  	make -C $(BUILD_DIR) M=$(MOD_OUTPUT_DIR) src=$(PWD)   modules
 
 $(BUILD_DIR):
 	$(warning kernel header source not found, install with )

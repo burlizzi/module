@@ -52,36 +52,18 @@ int main (int argc, char **argv)
     //sleep(1);
     fprintf (log,"0\n");
     fflush(log);
-    printf ("Changed message: %p %s\n", address, address);
+    memcpy (address , "user", 6);
+    sleep(1);
     fprintf (log,"1\n");
     fflush(log);
-//    for (i = 0; i < 100000000   ; i++)
-    {
-        memcpy (address , "user", 6);
-    }
-
+    memcpy (address , "use1", 6);
     sleep(1);
-    memcpy (address , "AAAAAAAAAAAAAAAAAA", 6);
-    sleep(1);
-//    mlock(address,PAGE_SIZE);
-    printf ("Changed message: %s\n", address);
     fprintf (log,"2\n");
     fflush(log);
-    //memcpy (address , hostname, HOST_NAME_MAX);
-    fprintf (log,"3\n");
-    fflush(log);
-    //sleep(1);
-    //sleep(1);
-    //memcpy (address + PAGE_SIZE*45-10, S("Hello from *user* this is file:"));
-    //memcpy (address + 11, "*mio**", 6);
-    //sleep(1);
+    memcpy (address , "use2", 6);
 
-    //memcpy (address + PAGE_SIZE*45-10, S("Hello from *again* this is file:"));
-    printf ("Changed message: %s\n", address);
-    //sleep(5);
-    //sleep(1);
-    printf ("Changed message: %s\n", address+PAGE_SIZE*45-10);
-    //sleep(1);
+    
+    
     munmap(address,PAGE_SIZE*400);
     close (configfd);
     //sleep(1);

@@ -36,10 +36,18 @@ struct kthread_t
 
 struct kthread_t *kthread = NULL;
 
+
+int sendpacket_address (void* address)
+{
+    printk("vrfm: ksocket_send!!\n");
+    ksocket_send(kthread->sock_send, &kthread->addr_send, address, PAGE_SIZE*PAGES_PER_BLOCK);
+    printk("vrfm: ksocket_send done!!\n");
+}
+
 int sendpacket (unsigned int page)
 {
     printk("vrfm: ksocket_send!!\n");
-    ksocket_send(kthread->sock_send, &kthread->addr_send, blocks_array[page], PAGE_SIZE*PAGES_PER_BLOCK);
+    sendpacket_address(blocks_array[page]);
     printk("vrfm: ksocket_send done!!\n");
     /*
 

@@ -2,12 +2,15 @@
 #include <linux/fs.h>    
 #include <linux/device.h>
 #include <linux/cdev.h>
-
+#include <linux/kernel.h>
+#include <linux/version.h>
 
 
 #include "net.h"
 #include "mmap.h"
 #include "config.h"
+#include "rfm2g/include/rfm2g_defs.h"
+#include "rfm2g/include/rfm2g_struct.h"
 
 
 #define MAX_BUFFER 1024
@@ -108,6 +111,55 @@ ssize_t complete_write(struct file *filp,const char __user *buf,size_t count,lof
     return count;
 }
 
+#define RFM2G_MAGIC 0xeb
+#define IOCTL_RFM2G_GET_CONFIG               _IOWR(RFM2G_MAGIC, 30, struct RFM2GCONFIG_)
+#define RFM2G_PRODUCT_STRING    "SW-RFM2G-DRV-LNX"
+#define RFM2G_PRODUCT_OS        "LINUX"
+#define RFM2G_PRODUCT_VERSION   "R09.00"
+
+RFM2GCONFIGLINUX mycfg;
+long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
+{
+    int ret_status = 0;
+    printk(KERN_ALERT "IOCTRL: %x\n", cmd);
+    RFM2GCONFIGLINUX *cfg=&mycfg;
+
+    switch( cmd )
+    {
+        case IOCTL_RFM2G_GET_CONFIG:
+        {
+			RFM2GCONFIG Config;
+            char *myself = "GET_CONFIG";
+
+
+			/* Copy the common stuff over */
+			Config.NodeId              = cfg->NodeId;
+			Config.BoardId             = cfg->BoardId;
+			Config.Unit                = cfg->Unit;
+			Config.PlxRevision         = cfg->PlxRevision;
+			Config.MemorySize          = cfg->MemorySize;
+			strcpy(Config.Device, "ciao");
+			strcpy(Config.Name, RFM2G_PRODUCT_STRING);
+			strcpy(Config.DriverVersion, RFM2G_PRODUCT_VERSION);
+			Config.BoardRevision       = cfg->RevisionId;
+			Config.RevisionId          = cfg->PCI.revision;
+            Config.BuildId             = cfg->BuildId;
+            memcpy(&Config.PciConfig, &cfg->PCI, sizeof(RFM2GPCICONFIG));
+
+			/* Read LCSR1 */
+			Config.Lcsr1 = 123;//(RFM2G_UINT32) readl( (char *)(( (RFM2G_ADDR) cfg->pCsRegisters + rfm2g_lcsr )));
+
+            /* Copy the data back to the user */
+            if( copy_to_user( (void *)arg, (void *)&Config,
+                sizeof(RFM2GCONFIG) ) > 0 )
+            {
+                return( -EFAULT );
+            }
+        }
+        break;    
+    }
+    return( ret_status );
+}
 
 
 static struct file_operations vrfm_driver_fops = 
@@ -118,6 +170,7 @@ static struct file_operations vrfm_driver_fops =
     .read = device_file_read,
     .write = complete_write,    
     .mmap = memory_map,
+    unlocked_ioctl: rfm2g_ioctl,
 };
 
 int chdev_init(void)
