@@ -1,3 +1,4 @@
+#include "config.h"
 #include "net.h"
 #include "protocol.h"
 #include <linux/netdevice.h>
@@ -20,7 +21,7 @@ void p(const char* s)
     printk(s);
 }
 
-int sendpacket (unsigned int page)
+int sendpacket (unsigned int offset)
 {
     struct net_rfm* eth;
     struct sk_buff * skbt =alloc_skb(ETH_HLEN+sizeof(struct net_rfm),GFP_KERNEL);      
@@ -39,13 +40,13 @@ int sendpacket (unsigned int page)
         printk("vrfm: cannot allocate skb_push!!\n");
         return 0;
     }
-    eth->len=PAGE_SIZE*PAGES_PER_BLOCK;
-    eth->page=page;
-    memcpy(eth->data,blocks_array[page],eth->len);
+    //eth->len=PAGE_SIZE*PAGES_PER_BLOCK;
+    eth->offset=offset;
+    memcpy(eth->data,blocks_array[offset/PAGE_SIZE] + (offset%PAGE_SIZE),CHUNK);
     skbt->dev=dev_eth;
 
-    dev_hard_header(skbt,dev_eth,ETH_P_802_3,dest,dev_eth->dev_addr,ETH_P_802_3_MIN+50);
-    skbt->protocol = ETH_P_802_3_MIN+50;
+    dev_hard_header(skbt,dev_eth,ETH_P_802_3,dest,dev_eth->dev_addr,0x612);
+    skbt->protocol = 0x612;
     if (skb_network_header(skbt) < skbt->data ||
                 skb_network_header(skbt) > skb_tail_pointer(skbt)) 
     {
@@ -75,15 +76,41 @@ void print_mac_hdr(struct ethhdr *eth)
 
 }
 
-static int hook_func( struct sk_buff *skb)
+static int hook_func( struct sk_buff *skb,
+					 struct net_device *in,
+					 struct packet_type *pt,
+					 struct net_device *out)
 {
         struct ethhdr *eth;    
-
+        size_t i,j;
+        //int len;
+        char line[17*3];
+        
         eth= eth_hdr(skb);
-        if (ntohs(eth->h_proto)==0x0632)
+        unsigned char* data=skb->data;
+        memset(line,0,17*3);
+        
+
+        if (ntohs(eth->h_proto)==0x0612)
         { 
             //print_mac_hdr(eth);
-            receive((struct net_rfm*)(skb->data+sizeof(struct ethhdr)));
+            //len=(int)skb->tail-(int)skb->data;
+/*
+            LOG("p %d %p %p %x",skb->len,skb->data,skb->tail,eth->h_proto);
+            //for (i = 0; i < 1; i++)
+            {
+              //  for ( j = 0; j < skb->len>14?14:skb->len; j++)
+                for ( i = 0; i < sizeof(struct ethhdr); i++)
+                {
+                    sprintf(line+i*3,"%02x ",data[i]);
+                }
+                line[16*3+1]='\n';
+                line[16*3+2]=0;
+                LOG(line);
+            }
+/**/
+            //if (skb->data) receive((struct net_rfm*)(skb->data));
+            receive((struct net_rfm*)(skb->data),skb->len-4);
         }
         
 

@@ -3,5 +3,5 @@
 #include "net.h"
 
 int transmit(unsigned int page);
-int receive(struct net_rfm* rec);
+int receive(struct net_rfm* rec,size_t len);
 #endif

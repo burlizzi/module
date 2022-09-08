@@ -1,4 +1,5 @@
 #include <linux/delay.h>
+#include <asm/pgtable_types.h>
 #include <linux/writeback.h>
 #include <linux/mm.h>
 #include <linux/pagemap.h>
@@ -14,6 +15,25 @@
 #include <linux/moduleparam.h>
 #include <linux/dma-mapping.h>
 #include <asm/tlbflush.h>
+
+
+
+#include <linux/init.h>
+#include <linux/module.h>
+#include <linux/kernel.h>
+#include <linux/proc_fs.h>
+#include <linux/pci.h>
+#include <linux/types.h>
+#include <linux/fs.h>
+#include <linux/sched.h>
+#include <asm/io.h>
+#include <asm/errno.h>
+#include <asm/uaccess.h>
+#include <linux/zconf.h>
+#include <linux/spinlock.h>
+#include <linux/delay.h>
+#include <linux/interrupt.h>
+#include <linux/seq_file.h>
 
 
 //static DEFINE_MUTEX(mmap_device_mutex);
@@ -109,7 +129,7 @@ static int write_end(struct file *file, struct address_space *mapping,
 {
 	LOG("FINITOOOOOOOOOOOOOOOOOOOOOOOOOO\n");
 	unlock_page(page);
-	page_cache_release(page);
+	//page_cache_release(page);
 	return copied;
 }
 
@@ -123,13 +143,22 @@ ssize_t direct_IO(struct kiocb *call, struct iov_iter *iter, loff_t offset)
 	LOG("99999999999999999999999999999999999999999 direct_IO\n");
 	return 123;
 }
+
+
+int vrfm_page_dirty(struct page *page)
+{
+	LOG("99999999999999999999999999999999999999999 vrfm_page_dirty\n");
+	return 123;
+}
+
 const struct address_space_operations nfs_file_aops = {
 	.write_end = write_end,
 	.writepage = writepage,
-	.direct_IO = direct_IO,
+	.set_page_dirty = vrfm_page_dirty,
+/*	.direct_IO = direct_IO,
 /*	.readpage = nfs_readpage,
 	.readpages = nfs_readpages,
-	.set_page_dirty = __set_page_dirty_nobuffers,
+	
 	.writepage = nfs_writepage,
 	.writepages = nfs_writepages,
 	.write_begin = nfs_write_begin,
@@ -144,6 +173,7 @@ const struct address_space_operations nfs_file_aops = {
 int mmap_open(struct inode *inode, struct file *filp)
 {
 	inode->i_mapping->a_ops=&nfs_file_aops;
+	
 #ifdef CONFIG_HAVE_IOREMAP_PROT
 	LOG("CONFIG_HAVE_IOREMAP_PROT\n");
 
@@ -268,15 +298,16 @@ static void fb_deferred_io_work(struct work_struct *work)
 	{
 		page=virt_to_page(blocks_array[*index]);
 		lock_page(page);
-		transmit(*index);
-		page_mkclean(page);
-
+		//transmit(*index);
+		if (page_mkclean(page))
+				set_page_dirty(page);
 		//clflush_cache_range(blocks_array[*index],4096);
-		LOG("packet sent %p %d\n",blocks_array[*index],*index);
+		LOG("------------------------->>>>packet sent %p %d\n",blocks_array[*index],*index);
 		*index=-1;
 		//page_cache_release(page);
 		//pte_wrprotect(page);
 		unlock_page(page);
+		//put_page(page);
 		//udelay(1000);
 		//set_memory_wb(blocks_array[*index],1);
 		//__native_flush_tlb();
@@ -294,10 +325,20 @@ static void fb_deferred_io_work(struct work_struct *work)
 
 
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,10,0))	
+vm_fault_t page_mkwrite(struct vm_fault *vmf)
+{
+struct vm_area_struct *vma=vmf->vma;
+#else
 int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 {
+#endif
 	short *index;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,10,0))	
+	int myoff=((long unsigned int)vmf->address-vma->vm_start)/PAGE_SIZE/PAGES_PER_BLOCK;
+#else
 	int myoff=((long unsigned int)vmf->virtual_address-vma->vm_start)/PAGE_SIZE/PAGES_PER_BLOCK;
+#endif
 	struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
 	LOG("page_mkwrite\n");
 	lock_page(vmf->page);
@@ -305,7 +346,11 @@ int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 	info->page=vmf->page;
 	info->x = myoff;
  	
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,10,0))	
+	LOG("page_mkwrite flags:%x pgoff:%d pgoff:%ld page:%p\n ",vmf->flags,myoff,vmf->pgoff,vmf->page);
+#else
 	LOG("page_mkwrite flags:%x pgoff:%d max_pgoff:%ld page:%p\n ",vmf->flags,myoff,vmf->max_pgoff,vmf->page);
+#endif
 	for ( index = dirt_pages; *index>=0  && myoff!=*index ; index++)
 	{
 		if (index-dirt_pages>blocks)
@@ -325,13 +370,18 @@ int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 int access(struct vm_area_struct *vma, unsigned long addr,
 		      void *buf, int len, int write)
 {
-	LOG("ACCESS!!!!!!!!!!!!!!!!!!!!!!! addr:%lx buf:%p len:%d write:%d\n ",addr,buf,len,write);
+	
+	LOG("ACCESS!!!!!!!!!!!!!!!!!!!!!!! addr:%lx buf:%p len:%d write:%d flags:%x\n ",addr,buf,len,write,vma->vm_flags);
 	return 0;
 }
 
 void map_pages(struct vm_area_struct *vma, struct vm_fault *vmf)
 {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,10,0))	
+	LOG("map_pages flags:%x pgoff:%ld pgoff:%ld page:%p\n ",vmf->flags,vmf->pgoff,vmf->pgoff,vmf->page);
+#else
 	LOG("map_pages flags:%x pgoff:%ld max_pgoff:%ld page:%p\n ",vmf->flags,vmf->pgoff,vmf->max_pgoff,vmf->page);
+#endif
 
 }
 
@@ -378,7 +428,7 @@ struct vm_operations_struct mmap_vm_ops = {
 	//.map_pages = map_pages,
 	.page_mkwrite = page_mkwrite,
 #ifdef CONFIG_HAVE_IOREMAP_PROT
-	.access = access, //TODO:/home/bulu101/linux-4.1.39-56/mm/memory.c:3616   /usr/src/linux-4.1.39-56/drivers/char/mem.c:317
+	.access = access, //TODO:/home/bulu101/linux-4.1.39-56/mm/memory.c:3616   /usr/src/linux/drivers/char/mem.c:317
 #endif	
 #ifdef CONFIG_NUMA
 	.set_policy	= set_policy,
@@ -402,7 +452,7 @@ static inline int private_mapping_ok(struct vm_area_struct *vma)
 	return vma->vm_flags & VM_MAYSHARE;
 }
 
-static inline int valid_phys_addr_range(phys_addr_t addr, size_t count)
+inline int valid_phys_addr_range(phys_addr_t addr, size_t count)
 {
 	return addr + count <= __pa(high_memory);
 }
@@ -424,19 +474,26 @@ int memory_map (struct file * file, struct vm_area_struct * vma)
 
     vma->vm_ops = &mmap_vm_ops;
 
-	//vma->vm_flags |= VM_DONTEXPAND | VM_DONTDUMP/* | VM_IO | VM_MIXEDMAP*/;
-	vma->vm_flags |= VM_IO | VM_MIXEDMAP;
+	vma->vm_flags |= VM_DONTEXPAND | VM_DONTDUMP/* | VM_IO | VM_MIXEDMAP*/;
+	vma->vm_flags |= VM_IO;
 
 	vma->vm_private_data = file->private_data;
-	/*if (remap_pfn_range(vma,
+	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+
+
+/*
+	if (remap_pfn_range(vma,
 			    vma->vm_start,
 			    vma->vm_pgoff,
 			    size,
 			    vma->vm_page_prot)) {
 		LOG("memory_map: ERROR\n");					
 		return -EAGAIN;
-	}*/
+	}/**/
 	//mmap_open1(vma);    
+	
+
+
 	
     return 0;
 }

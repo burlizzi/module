@@ -17,7 +17,7 @@ int main (int argc, char **argv)
 
 
     int configfd;
-    char *address = NULL;
+    volatile char *address = NULL;
     int i;
     
 
@@ -28,7 +28,7 @@ int main (int argc, char **argv)
         return -1;
     }
 
-    address = mmap (NULL, PAGE_SIZE*400, PROT_READ | PROT_WRITE, MAP_SHARED, configfd, 0);
+    address = (volatile char *)mmap (NULL, PAGE_SIZE*400, PROT_READ | PROT_WRITE, MAP_SHARED, configfd, 0);
     
     if (address == MAP_FAILED)
     {
@@ -44,12 +44,16 @@ int main (int argc, char **argv)
     //sleep(1);
     fprintf (log,"0\n");
     fflush(log);
+
     printf ("Changed message: %p %s\n", address, address);
     fprintf (log,"1\n");
     fflush(log);
-//    for (i = 0; i < 100000000   ; i++)
+    //for (i = 0; i < 100000000   ; i++)
     {
+        printf ("Changed message: %p %s\n", address, address);
+        sleep(1);
         memcpy (address , "user", 6);
+
     }
 
     sleep(1);
@@ -65,7 +69,7 @@ int main (int argc, char **argv)
     //sleep(1);
     memcpy (address + PAGE_SIZE*45-10, S("Hello from *user* this is file:"));
     //memcpy (address + 11, "*mio**", 6);
-    //sleep(1);
+    sleep(1);
 
     memcpy (address + PAGE_SIZE*45-10, S("Hello from *again* this is file:"));
     printf ("Changed message: %s\n", address);

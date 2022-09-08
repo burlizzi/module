@@ -2,7 +2,10 @@
     "files.associations": {
         "rfm2g_api.h": "c",
         "dma-mapping.h": "c",
-        "scatterlist.h": "c"
+        "scatterlist.h": "c",
+        "netdevice.h": "c",
+        "pgtable.h": "c",
+        "pgtable_types.h": "c"
     },
     "C_Cpp.errorSquiggles": "Disabled"
 }

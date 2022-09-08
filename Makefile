@@ -59,7 +59,7 @@ clean:
 
 install: all
 	KCPPFLAGS="-DDEVICE_NAME=$(DEVICE_NAME) -DMODULE_NAME=$(MODULE_NAME) -DMAP_SIZE=$(MAP_SIZE)" make -C $(BUILD_DIR)   M=$(MOD_OUTPUT_DIR) src=$(PWD)  modules
-	@sudo insmod $(MOD_OUTPUT_DIR)/$(MODULE_NAME).ko
+	@sudo insmod $(MOD_OUTPUT_DIR)/$(MODULE_NAME).ko device=eth1
 
 uninstall:
 	@lsmod | grep $(MODULE_NAME) && sudo rmmod $(MODULE_NAME) || echo "module is not loaded"

@@ -9,34 +9,54 @@
 extern int size;
 
 
-int transmit(unsigned int page)
+
+
+
+int transmit(unsigned int offset)
 {
-    sendpacket(page);
+    sendpacket(offset);
     return false;
 }
 
-int receive(struct net_rfm* rec)
+int receive(struct net_rfm* rec,size_t len)
 {
     int blocks=size/PAGE_SIZE/PAGES_PER_BLOCK;
-
     
-
-    if (rec->page<0 ||  rec->page>=blocks)
+    
+    /*
+    size_t i,j;
+    char line[17*3];
+    unsigned char *b=(unsigned char *)rec;
+    
+    for ( i = 0; i < sizeof(struct ethhdr); i++)
     {
-        LOG("invalid packet received:%d \n",rec->page);
+        sprintf(line+i*3,"%02x ",b[i]);
+    }
+    line[16*3+1]='\n';
+    line[16*3+2]=0;
+    LOG(line);
+    */
+
+
+    if (rec->offset<0 ||  rec->offset>=size)
+    {
+        LOG("invalid packet received:%d \n",rec->offset);
         return -1;
     }
-    if (!blocks_array[rec->page])
+    if (!blocks_array[rec->offset/PAGE_SIZE])
 	{
-		LOG("allocate page chunk:%d \n",rec->page);
-		blocks_array[rec->page]=(char *)__get_free_pages(GFP_KERNEL, PAGES_ORDER);
+		LOG("allocate page chunk:%d \n",rec->offset/PAGE_SIZE);
+		blocks_array[rec->offset/PAGE_SIZE]=(char *)__get_free_pages(GFP_KERNEL, PAGES_ORDER);
 		
 	}
-    //for (x=0;x<100;x++)
-    //        printk("%x ", rec->data[x]);
 
-    //printk("\n%x\n", rec->len);
+    if (len+(rec->offset % PAGE_SIZE)>PAGE_SIZE)
+    {
+        LOG("packet not aligned to page:%d \n",len+(rec->offset % PAGE_SIZE));
+        return -1;
+    }
 
-    memcpy(blocks_array[rec->page],rec->data,rec->len);
+    //LOG("copy %d bytes page %d page_offset %d \n",len,rec->offset/PAGE_SIZE,rec->offset % PAGE_SIZE);
+    memcpy(blocks_array[rec->offset/PAGE_SIZE]+(rec->offset % PAGE_SIZE),rec->data,len);
     return 42;
 }
