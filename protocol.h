@@ -2,6 +2,6 @@
 #define PROTOCOL_H
 #include "net.h"
 
-int transmit(unsigned int page);
+int transmitPage(unsigned int page);
 int receive(struct net_rfm* rec,size_t len);
 #endif

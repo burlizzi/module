@@ -2,6 +2,7 @@
 #include <linux/fs.h>    
 #include <linux/device.h>
 #include <linux/cdev.h>
+#include <linux/delay.h>
 
 
 
@@ -15,8 +16,9 @@
 char procfs_buffer[MAX_BUFFER];
 
 
+const char* devname = "/dev/rfm";
 
-
+const int unit = 0;
 
 
 
@@ -91,11 +93,356 @@ ssize_t complete_write(struct file *filp,const char __user *buf,size_t count,lof
     //memcpy(info->data, "Hello from kernel this is file: ", 32);
 
     //printk( KERN_NOTICE "vrfm: received %s\n" , procfs_buffer);
-
-    sendpacket(0);
+    int retval;
+    while (retval=sendpacket((*pos),count)==1)
+                    //udelay(1)
+                    ;
+    if (retval==-1)
+        return 0;
     return count;
 }
 
+
+void allocatedata(struct mmap_info * info, size_t offset, size_t length)
+{
+
+    size_t block=offset/PAGE_SIZE;
+    size_t endblock=(offset+length)/PAGE_SIZE+1;
+    for ( ; block < endblock; block++)
+    {
+        
+        if (!info->data) {
+            LOG("No data\n");
+            return VM_FAULT_SIGBUS;
+        }
+
+        if (offset>=size<<PAGES_ORDER)
+        {
+            LOG("mmap_fault overflow\n");
+            return VM_FAULT_SIGBUS;
+        }
+
+        if (!info->data[block])
+        {
+            LOG("allocate page chunk:%d \n",block);
+            info->data[block]=(char *)__get_free_pages(GFP_KERNEL, PAGES_ORDER);
+            //info->data[block]=(char *)__get_free_pages(GFP_KERNEL| GFP_DMA | __GFP_NOWARN |__GFP_NORETRY, PAGES_ORDER);
+            memset(info->data[block],0,PAGE_SIZE<<PAGES_ORDER);
+        }
+        else 
+        {
+            //LOG("recycle page chunk:%d offset:%lx \n",block,offset);
+        }
+    }
+
+            
+}
+
+
+
+long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
+{
+        static char *me = "rfm2g_ioctl()";
+    
+    	/* Valid Call? */
+
+	if (_IOC_TYPE(cmd) != RFM2G_MAGIC)
+	{
+//        WHENDEBUG(RFM2G_DBERROR)
+        {
+            printk(KERN_ERR"%s: Exiting : invalid ioctl magic num = %d expected %d\n",
+                me, _IOC_TYPE(cmd), RFM2G_MAGIC);
+        }
+		return -ENOTTY;
+	}
+
+            //printk(KERN_ERR"%s: Exiting : invalid ioctl magic num = %d expected %d\n",me, _IOC_TYPE(cmd), RFM2G_MAGIC);
+
+    switch( cmd )
+    {
+        case IOCTL_RFM2G_SET_SPECIAL_MMAP_OFFSET:
+        {
+            return( 0 );
+        }
+        case IOCTL_RFM2G_ATOMIC_PEEK:
+        {
+            char *myself = "ATOMIC_PEEK";
+            RFM2GATOMIC  Data;     /* Info necessary to do the access         */
+    	    RFM2G_ADDR rfm2gAddr;  /* RFM address to read data              */
+            RFM2G_ADDR base;     /* Base address of RFM I/O or memory space */
+            RFM2G_UINT32 maxsize;  /* Max size of RFM I/O or memory space     */
+            struct mmap_info *info = filp->private_data;
+
+
+
+            if( copy_from_user( (void *)&Data, (void *)arg,
+                sizeof(RFM2GATOMIC) ) > 0 )
+            {
+                WHENDEBUG(RFM2G_DBERROR)
+                {
+                    printk(KERN_ERR"%s%d: Exiting %s: copy_from_user() failed\n",
+                        devname, unit, me );
+                }
+
+                return( -EFAULT );
+            }
+
+            /* Validate the data width */
+            switch( Data.width )
+            {
+                case RFM2G_BYTE: break;
+                case RFM2G_WORD: break;
+                case RFM2G_LONG: break;
+                case RFM2G_LONGLONG: /* Not supported, fall thru to default */
+                default:
+                {
+                    WHENDEBUG(RFM2G_DBERROR)
+                    {
+                        printk(KERN_ERR"%s%d: Exiting %s: Invalid data width %d\n",
+                            devname, unit, me, Data.width );
+                    }
+
+                    return( -EINVAL );
+                }
+            }
+
+            //base    =  (RFM2G_ADDR)cfg->pBaseAddress;
+            maxsize = size;
+            
+
+            int block=Data.offset/PAGE_SIZE;
+            
+            allocatedata(info,Data.offset,Data.width );
+            int offsetinpage=Data.offset % PAGE_SIZE;
+            char* dest=(char*)&Data.data;
+            if( unlikely(offsetinpage+Data.width>PAGE_SIZE))//we crossed the boundaries
+            {
+                memcpy(dest, &info->data[block][offsetinpage],PAGE_SIZE-offsetinpage);
+                memcpy(dest+PAGE_SIZE-offsetinpage, &info->data[block+1][0],Data.width+offsetinpage-PAGE_SIZE);
+
+            }
+            else
+                memcpy(dest, &info->data[block][offsetinpage],Data.width);
+           	
+
+
+            /*if( rfm2g_peek( cfg, rfm2gAddr, &(Data.data), Data.width ) != 0 )
+            {
+                WHENDEBUG(RFM2G_DBERROR)
+                {
+                    printk(KERN_ERR"%s%d: Exiting %s: rfm2g_peek() failed\n",
+                        devname, unit, me );
+                }
+
+                return( -EINVAL );
+            }*/
+
+            /* Copy the data back to the user */
+            if( copy_to_user( (void *)arg, (void *)&Data,
+                sizeof(RFM2GATOMIC) ) > 0 )
+            {
+                WHENDEBUG(RFM2G_DBERROR)
+                {
+                    printk(KERN_ERR"%s%d: Exiting %s: copy_to_user() failed\n",
+                        devname, unit, me );
+                }
+
+                return( -EFAULT );
+            }
+
+            return( 0 );
+        }
+
+        case IOCTL_RFM2G_WRITE:
+        {
+			RFM2GTRANSFER rfm2gTransfer;
+            if( copy_from_user( (void *)&rfm2gTransfer, (void *)arg,
+                sizeof(RFM2GTRANSFER) ) > 0 )
+            {
+                WHENDEBUG(RFM2G_DBERROR)
+                {
+                    printk(KERN_ERR": Exiting %s: copy_from_user() failed \n",me );
+                }
+
+                return( -EFAULT );
+            }
+
+            struct mmap_info *info = filp->private_data;
+            int block=rfm2gTransfer.Offset/PAGE_SIZE;
+
+            allocatedata(info,rfm2gTransfer.Offset,rfm2gTransfer.Length);
+            
+            size_t start=rfm2gTransfer.Offset;
+            int len=rfm2gTransfer.Length;
+
+            for(;block<=((rfm2gTransfer.Offset+rfm2gTransfer.Length-1)/PAGE_SIZE);block++)
+            {
+                char* thisblock=info->data[block];
+                size_t end=start+len;
+                size_t startInThisBlock=start % PAGE_SIZE;
+                size_t len2endofpage=PAGE_SIZE-startInThisBlock;
+                if(len2endofpage>len)
+                    len2endofpage=len;
+                //printk("block %d start %d end %d len=%d len2endofpage %d\n",block,startInThisBlock,end,len,len2endofpage);
+
+                
+                if (!thisblock)
+                {
+                    printk(KERN_ERR": Exiting %s: unallocated block %d \n",me,block );
+                    return( -EFAULT );
+                }
+                memcpy(&thisblock[startInThisBlock],((char*)rfm2gTransfer.Buffer)+startInThisBlock,len2endofpage);
+                start=(block+1)*PAGE_SIZE;
+                len-=len2endofpage;
+            }
+
+            start=rfm2gTransfer.Offset;
+            for (len=rfm2gTransfer.Length;len>0;len-=CHUNK )
+            {
+                while (sendpacket(start,len>CHUNK?CHUNK:len)==1)
+                    //udelay(1)
+                    ;
+                start+=CHUNK;
+            }
+         return( 0 );
+        }
+        case IOCTL_RFM2G_READ:
+        {
+         return( 0 );
+        }
+        case IOCTL_RFM2G_READ_REG:
+        {
+            printk(KERN_ERR": IOCTL_RFM2G_READ_REG\n" );
+
+   			RFM2GLINUXREGINFO rfm2gLinuxRegInfo;
+            static char data[]={1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21};
+			void* pAddr = NULL;
+
+            if( copy_from_user( (void *)&rfm2gLinuxRegInfo, (void *)arg,
+                sizeof(RFM2GLINUXREGINFO) ) > 0 )
+            {
+                WHENDEBUG(RFM2G_DBERROR)
+                {
+                    printk(KERN_ERR": Exiting %s: copy_from_user() failed\n", me );
+                }
+                return( -EFAULT );
+            }
+            printk(KERN_ERR": rfm2gLinuxRegInfo.regset=%d\n",rfm2gLinuxRegInfo.regset );
+
+            switch(rfm2gLinuxRegInfo.regset)
+            {
+                case RFM2GCFGREGIO:
+                    return ( -EINVAL );
+                    break;
+
+                case RFM2GCFGREGMEM:
+                    printk(KERN_ERR": Exiting %s: good\n", me );
+                    pAddr = (void*) data;
+                    break;
+
+                case RFM2GCTRLREGMEM:
+
+                    return ( -EINVAL );
+                    break;
+
+                case RFM2GMEM:
+                    return ( -EINVAL );
+                    break;
+
+                case RFM2GRESERVED0REG:
+                    return ( -EINVAL );
+                    break;
+
+                case RFM2GRESERVED1REG:
+                    return ( -EINVAL );
+                    break;
+
+                default:
+                    return ( -EINVAL );
+            }
+
+            switch( rfm2gLinuxRegInfo.Width )
+            {
+                case RFM2G_BYTE:
+                    return ( -EINVAL );
+                    //rfm2gLinuxRegInfo.Value = (RFM2G_ADDR) readb( (char *)(pAddr) );
+                    break;
+                case RFM2G_WORD:
+                    return ( -EINVAL );
+                    //rfm2gLinuxRegInfo.Value = (RFM2G_ADDR) readw( (char *)(pAddr) );
+                    break;
+                case RFM2G_LONG:
+                    rfm2gLinuxRegInfo.Value = RFMOR_LAS1RR_RANGE_2M;
+                    break;
+
+                case RFM2G_LONGLONG: /* Not supported */
+                default:
+                    return ( -EINVAL );
+            }
+            /* Copy the data back to the user */
+            if( copy_to_user( (void *)arg, (void *)&rfm2gLinuxRegInfo,
+                sizeof(RFM2GLINUXREGINFO) ) > 0 )
+            {
+                WHENDEBUG(RFM2G_DBERROR)
+                {
+                    printk(KERN_ERR": Exiting %s: copy_to_user() failed\n",
+                            me );
+                }
+
+                return( -EFAULT );
+            }
+
+
+
+         return( 0 );
+        }
+        case IOCTL_RFM2G_GET_CONFIG:
+        {
+			RFM2GCONFIG Config;
+            char *myself = "GET_CONFIG";
+
+            WHENDEBUG(RFM2G_DBIOCTL)
+            {
+                printk(KERN_ERR "%d: %s cmd = %s\n",0, me, myself);
+            }
+
+			/* Copy the common stuff over */
+			Config.NodeId              = 1;
+			Config.BoardId             = 1;
+			Config.Unit                = 1;
+			Config.PlxRevision         = 1;
+			Config.MemorySize          = 64*1024*1024;
+			strcpy(Config.Device, "#DEVICE_NAME");
+			strcpy(Config.Name, RFM2G_PRODUCT_STRING);
+			strcpy(Config.DriverVersion, RFM2G_PRODUCT_VERSION);
+			Config.BoardRevision       = 0x8d;
+			Config.RevisionId          = 1;
+            Config.BuildId             = 1;
+            memset(&Config.PciConfig, 0, sizeof(RFM2GPCICONFIG));
+
+			/* Read LCSR1 */
+			Config.Lcsr1 = 0;// (RFM2G_UINT32) readl( (char *)(( (RFM2G_ADDR) cfg->pCsRegisters + rfm2g_lcsr )));
+
+            /* Copy the data back to the user */
+            if( copy_to_user( (void *)arg, (void *)&Config,
+                sizeof(RFM2GCONFIG) ) > 0 )
+            {
+                WHENDEBUG(RFM2G_DBERROR)
+                {
+                    printk(KERN_ERR "%d: Exiting %s: copy_to_user() failed\n",
+                        0, me );
+                }
+
+                return( -EFAULT );
+            }
+        }
+        return( 0 );
+        break;
+    }
+
+    return( -EFAULT );
+
+}
 
 
 static struct file_operations vrfm_driver_fops = 
@@ -106,6 +453,8 @@ static struct file_operations vrfm_driver_fops =
     .read = device_file_read,
     .write = complete_write,    
     .mmap = memory_map,
+    .unlocked_ioctl = rfm2g_ioctl,
+
 };
 
 int chdev_init(void)

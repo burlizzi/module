@@ -12,22 +12,30 @@ extern int size;
 
 
 
-int transmit(unsigned int offset)
+int transmitPage(unsigned int offset)
 {
-    sendpacket(offset);
+    //LOG("------------------------->>>>packet sent %d\n",offset);
+    size_t i;
+    size_t len=PAGE_SIZE;
+    for (i = 0; i < PAGE_SIZE/CHUNK+1; i++)
+    {
+        sendpacket(offset*PAGE_SIZE+i*CHUNK,len>CHUNK?CHUNK:len);
+        len-=CHUNK;
+    }
     return false;
 }
 
 int receive(struct net_rfm* rec,size_t len)
 {
-    int blocks=size/PAGE_SIZE/PAGES_PER_BLOCK;
+    int blocks=size;
     
     
-    /*
+    
     size_t i,j;
-    char line[17*3];
+    char line[19*3];
+    memset16((uint16_t*)line,'\n\0',17*3/2);    
     unsigned char *b=(unsigned char *)rec;
-    
+    /*
     for ( i = 0; i < sizeof(struct ethhdr); i++)
     {
         sprintf(line+i*3,"%02x ",b[i]);
@@ -35,7 +43,7 @@ int receive(struct net_rfm* rec,size_t len)
     line[16*3+1]='\n';
     line[16*3+2]=0;
     LOG(line);
-    */
+    /**/
 
 
     if (rec->offset<0 ||  rec->offset>=size)

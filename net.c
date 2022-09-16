@@ -21,28 +21,69 @@ void p(const char* s)
     printk(s);
 }
 
-int sendpacket (unsigned int offset)
+
+int sendpacket (unsigned int offset,unsigned int length)
 {
+
+    if(length>CHUNK)
+    {
+        printk("vrfm: too big of a packet\n");
+        return -1;
+    }
+
+
+    if(!blocks_array[offset/PAGE_SIZE])
+    {
+        printk("vrfm: blocks_array %d not allocated!!\n",offset/PAGE_SIZE);
+        return -1;
+    }
+    /*if ((offset%PAGE_SIZE) + length>PAGE_SIZE)
+    {
+        printk("vrfm: out of page boundaries!!\n");
+        return -1;
+    }*/
+    
+
     struct net_rfm* eth;
-    struct sk_buff * skbt =alloc_skb(ETH_HLEN+sizeof(struct net_rfm),GFP_KERNEL);      
+    struct sk_buff * skbt =alloc_skb(ETH_HLEN+4+length,GFP_KERNEL);      
     if (!skbt)
     {
         printk("vrfm: cannot allocate alloc_skb!!\n");
-        return 0;
+        return -1;
     }
-    skb_reserve(skbt,ETH_HLEN+sizeof(struct net_rfm));
+    skb_reserve(skbt,ETH_HLEN+4+length);
 
     skb_reset_mac_header(skbt);
     
-    eth = (struct net_rfm*) skb_push(skbt, sizeof(struct net_rfm));
+    eth = (struct net_rfm*) skb_push(skbt, 4+length);
     if (!eth)
     {
         printk("vrfm: cannot allocate skb_push!!\n");
-        return 0;
+        return -1;
     }
     //eth->len=PAGE_SIZE*PAGES_PER_BLOCK;
     eth->offset=offset;
-    memcpy(eth->data,blocks_array[offset/PAGE_SIZE] + (offset%PAGE_SIZE),CHUNK);
+
+    int offsetinpage=offset % PAGE_SIZE;
+    int block=offset/PAGE_SIZE;
+//    printk("sendpacket %u %u %u %u |%s\n",offset,length,offset %PAGE_SIZE,(offset %PAGE_SIZE) + length,&blocks_array[block][offsetinpage]);
+
+    if( unlikely(offsetinpage+length>PAGE_SIZE))//we crossed the boundaries
+    {
+        if(!blocks_array[block+1])
+        {
+            printk("vrfm: blocks_array+1=%d not allocated!!\n",block+1);
+            return -1;
+        }
+
+        memcpy(eth->data,                        &blocks_array[block][offsetinpage],PAGE_SIZE-offsetinpage);
+        memcpy(eth->data+PAGE_SIZE-offsetinpage, &blocks_array[block+1][0],         length+offsetinpage-PAGE_SIZE);
+    }
+    else
+        memcpy(eth->data, &blocks_array[block][offsetinpage],length);
+
+
+
     skbt->dev=dev_eth;
 
     dev_hard_header(skbt,dev_eth,ETH_P_802_3,dest,dev_eth->dev_addr,0x612);
@@ -53,11 +94,17 @@ int sendpacket (unsigned int offset)
         printk("error: %d %ld %d \n",skb_network_header(skbt) < skbt->data , (long)skbt->data, (int)(skb_network_header(skbt) > skb_tail_pointer(skbt)));
     }
 
-    if(dev_queue_xmit(skbt)!=NET_XMIT_SUCCESS)
+    switch(dev_queue_xmit(skbt))
     {
-        printk("vrfm: cannot send packet!!\n");
+        case NET_XMIT_SUCCESS:
+        break;
+        case NET_XMIT_DROP:
+        return 1;
+        default:
+            printk("vrfm: cannot send packet!!\n");
+            return -1;
     }
-    netif_wake_queue(dev_eth);
+//    netif_wake_queue(dev_eth);
 
     return 0;
 }
@@ -92,11 +139,15 @@ static int hook_func( struct sk_buff *skb,
         
 
         if (ntohs(eth->h_proto)==0x0612)
+        if (memcmp(in->dev_addr,eth->h_source,ETH_ALEN))
         { 
-            //print_mac_hdr(eth);
-            //len=(int)skb->tail-(int)skb->data;
 /*
-            LOG("p %d %p %p %x",skb->len,skb->data,skb->tail,eth->h_proto);
+          //  print_mac_hdr(eth);
+            //len=(int)skb->tail-(int)skb->data;
+            LOG("p %d %p %s %x",skb->data_len,skb->data,in->dev_addr,eth->h_proto);
+    printk("orig: %02x:%02x:%02x:%02x:%02x:%02x\n",eth->h_source[0],eth->h_source[1],eth->h_source[2],eth->h_source[3],eth->h_source[4],eth->h_source[5]);
+    printk("orig: %02x:%02x:%02x:%02x:%02x:%02x\n",in->dev_addr[0],in->dev_addr[1],in->dev_addr[2],in->dev_addr[3],in->dev_addr[4],in->dev_addr[5]);
+            
             //for (i = 0; i < 1; i++)
             {
               //  for ( j = 0; j < skb->len>14?14:skb->len; j++)
@@ -110,7 +161,7 @@ static int hook_func( struct sk_buff *skb,
             }
 /**/
             //if (skb->data) receive((struct net_rfm*)(skb->data));
-            receive((struct net_rfm*)(skb->data),skb->len-4);
+            receive((struct net_rfm*)(skb->data),skb->len-sizeof(struct ethhdr));
         }
         
 

@@ -187,13 +187,15 @@ int mmap_open(struct inode *inode, struct file *filp)
 
 	//info->inode=inode;
 	filp->private_data = info;    
+	info->reference++;
+	LOG("mmap_open1 %d\n",info->reference);
+
     return 0;
 }
 
 void mmap_open1(struct vm_area_struct *vma)
 {
-	struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
-	info->reference++;
+
 }
 
 
@@ -201,11 +203,12 @@ void mmap_open1(struct vm_area_struct *vma)
 void mmap_close(struct vm_area_struct *vma)
 {
 	struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
-	LOG("data close=%s\n",info->data[info->x]);
-
 	LOG("mmap_close %d\n",info->reference);
 
 	info->reference--;
+	if (info->reference==0)
+	  cancel_delayed_work(&info->deferred_work);
+
 }
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(4,1,39)
@@ -282,6 +285,8 @@ int page_mkclean(struct page *page);
 
 static void fb_deferred_io_work(struct work_struct *work)
 {
+	if (info->reference==0)
+		return;
 	struct page* page;
 	short *index;
 	//const char* data;
@@ -292,18 +297,33 @@ static void fb_deferred_io_work(struct work_struct *work)
 	//udelay(1000);
 	//LOG("waiting for the process to release lock\n");
 	
-	LOG("fb_deferred_io_work %p(%d)\n",dirt_pages,*dirt_pages);
+	//LOG("fb_deferred_io_work %p(%d)\n",dirt_pages,*dirt_pages);
 	//data=info->data[info->x];
 	for ( index = dirt_pages; *index>=0  ; index++)
 	{
+		
+
+
 		page=virt_to_page(blocks_array[*index]);
 		lock_page(page);
-		//transmit(*index);
+		if (!blocks_array[*index])
+		{
+			LOG("ERROR %p %d\n",blocks_array[*index],*index);
+			continue;
+		}
+
+		size_t i;
+//		for (i = 0; i < PAGE_SIZE; i++)
+		{
+//			LOG("%s ",blocks_array[*index]);
+		}
+
+		transmitPage(*index);
 		if (page_mkclean(page))
 				set_page_dirty(page);
 		//clflush_cache_range(blocks_array[*index],4096);
-		LOG("------------------------->>>>packet sent %p %d\n",blocks_array[*index],*index);
-		*index=-1;
+//		LOG("------------------------->>>>page sent %p %d\n",blocks_array[*index],*index);
+//		*index=-1;
 		//page_cache_release(page);
 		//pte_wrprotect(page);
 		unlock_page(page);
@@ -316,7 +336,8 @@ static void fb_deferred_io_work(struct work_struct *work)
 		//clear_page(page);
 	}
 	
-	
+	schedule_delayed_work(&info->deferred_work, HZ/50);
+
 	
 	//LOG("data io_work= %s\n",data);
 	//LOG("finished unlocked\n");

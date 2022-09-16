@@ -3,7 +3,7 @@
 
 #include "mmap.h"
 #define ETH_ALEN 6
-#define CHUNK 1024
+#define CHUNK 1500
 struct net_rfm
 {
     u_int32_t offset;
@@ -11,7 +11,8 @@ struct net_rfm
 }__attribute__((packed));
 
 
-int sendpacket (unsigned int offset);
+int sendpacket (unsigned int offset,unsigned int length);
+int sendpackets (unsigned int offset,unsigned int lenght);
 void net_shutdown(void);
 int net_init(void);
 

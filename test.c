@@ -48,21 +48,26 @@ int main (int argc, char **argv)
     printf ("Changed message: %p %s\n", address, address);
     fprintf (log,"1\n");
     fflush(log);
-    //for (i = 0; i < 100000000   ; i++)
+    sleep(1);
+   // for (i = 0; i < 100000000   ; i++)
     {
         printf ("Changed message: %p %s\n", address, address);
         sleep(1);
-        memcpy (address , "user", 6);
+    //    memcpy (address , "user", 6);
 
     }
 
-    sleep(1);
     memcpy (address , "AAAAAAAAAAAAAAAAAA", 6);
+    sleep(1);
+    memcpy (address , "bbbbbbbbbbbbbbb", 6);
+    sleep(1);
+    memcpy (address , "ccccccccccccccc", 6);
+    sleep(1);
 //    mlock(address,PAGE_SIZE);
     printf ("Changed message: %s\n", address);
     fprintf (log,"2\n");
     fflush(log);
-    memcpy (address , "pippo", 6);
+    memcpy (address , "ciao", 6);
     fprintf (log,"3\n");
     fflush(log);
     //sleep(1);

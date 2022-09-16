@@ -8,8 +8,8 @@ BUILD_DIR = /lib/modules/$(shell uname -r)/build
 PWD = $(shell pwd)
 MOD_OUTPUT_DIR =$(PWD)/bin
 BUILD_DIR_MAKEFILE ?= $(PWD)/bin/Makefile
-#FLAGS = -O3
-FLAGS = -O0 -DDEBUG -g
+FLAGS = -O3 
+#FLAGS = -O0 -DDEBUG -g
 
 all: module bin/test sync
 
