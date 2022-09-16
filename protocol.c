@@ -30,12 +30,12 @@ int receive(struct net_rfm* rec,size_t len)
     int blocks=size;
     
     
+    /*
     
     size_t i,j;
     char line[19*3];
     memset16((uint16_t*)line,'\n\0',17*3/2);    
     unsigned char *b=(unsigned char *)rec;
-    /*
     for ( i = 0; i < sizeof(struct ethhdr); i++)
     {
         sprintf(line+i*3,"%02x ",b[i]);
