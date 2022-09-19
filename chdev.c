@@ -113,13 +113,13 @@ void allocatedata(struct mmap_info * info, size_t offset, size_t length)
         
         if (!info->data) {
             LOG("No data\n");
-            return VM_FAULT_SIGBUS;
+            return ;
         }
 
         if (offset>=size<<PAGES_ORDER)
         {
             LOG("mmap_fault overflow\n");
-            return VM_FAULT_SIGBUS;
+            return ;
         }
 
         if (!info->data[block])
