@@ -12,9 +12,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: docker://opensuse/amd64:42.1
+#    - uses: docker://opensuse/amd64:42.1
+    - uses: actions/checkout@v3
     
-    - name: Install dependencies
+    - name: Compilation
       run: make
       
+    - name: 'Upload Artifact'
+      uses: actions/upload-artifact@v3
+      with:
+        name: kernel module
+        path: bin/vrfm.ko
+        retention-days: 5      
     
