@@ -8,9 +8,10 @@ unsigned char dest[ETH_ALEN] = {0xff,0xff,0xff,0xff,0xff,0xff}; //broadcast
 
 struct net_device* dev_eth;
 
-static char *device = "eth0";
-module_param(device, charp,S_IRUGO);
-MODULE_PARM_DESC(device, "network interface to use");
+static char *netdevice = "eth0";
+module_param(netdevice, charp,S_IRUGO);
+MODULE_PARM_DESC(netdevice, "network interface to use");
+
 
 static bool jumbo = true;
 module_param(jumbo, bool,S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
@@ -192,8 +193,8 @@ int net_init(void)
     int err=0;
     int i=1;
     
-    printk(KERN_INFO "netif is : %s\n", device);
-    dev_eth=dev_get_by_name(&init_net,device);
+    printk(KERN_INFO "netif is : %s\n", netdevice);
+    dev_eth=dev_get_by_name(&init_net,netdevice);
     if (!dev_eth)
     {
         printk("dev not found, choose one of the following:\n");

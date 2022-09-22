@@ -33,6 +33,12 @@ dev_t devNo;  // Major and Minor device numbers combined into 32 bits
 struct class *pClass;  // class_create will set this
 
 
+static char *rfmdevice = "rfm2g0";
+module_param(rfmdevice, charp,S_IRUGO);
+MODULE_PARM_DESC(rfmdevice, "RFM device to create");
+
+
+
 static char *vrfm_devnode(struct device *dev, umode_t *mode)
 {
         if (!mode)
@@ -419,7 +425,7 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
 			Config.Unit                = 1;
 			Config.PlxRevision         = 1;
 			Config.MemorySize          = 64*1024*1024;
-			strcpy(Config.Device, "#DEVICE_NAME");
+			strcpy(Config.Device, rfmdevice);
 			strcpy(Config.Name, RFM2G_PRODUCT_STRING);
 			strcpy(Config.DriverVersion, RFM2G_PRODUCT_VERSION);
 			Config.BoardRevision       = 0x8d;
@@ -478,7 +484,7 @@ int chdev_init(void)
   devNo = MKDEV(majorNum, 0);  // Create a dev_t, 32 bit version of numbers
 
   // Create /sys/class/DEVICE_NAME in preparation of creating /dev/DEVICE_NAME
-  pClass = class_create(THIS_MODULE, xstr(DEVICE_NAME));
+  pClass = class_create(THIS_MODULE, rfmdevice);
 
   pClass->devnode = vrfm_devnode;
 
@@ -490,12 +496,13 @@ int chdev_init(void)
   }
 
   // Create /dev/DEVICE_NAME for this char dev
-  if (IS_ERR(pDev = device_create(pClass, NULL, devNo, NULL, xstr(DEVICE_NAME)))) {
-    printk(KERN_WARNING xstr(MODULE_NAME)".ko can't create device /dev/"xstr(DEVICE_NAME)"\n");
+  if (IS_ERR(pDev = device_create(pClass, NULL, devNo, NULL, rfmdevice))) {
+    printk(KERN_WARNING xstr(MODULE_NAME)".ko can't create device /dev/%s\n",rfmdevice);
     class_destroy(pClass);
     unregister_chrdev_region(devNo, 1);
     return -1;
   }
+  printk("VRFM device created on /dev/%s\n",rfmdevice);
   return 0;
 }
 
@@ -503,5 +510,5 @@ void chdev_shutdown(void)
 {
     device_destroy(pClass, devNo);  // Remove the /dev/DEVICE_NAME
     class_destroy(pClass);  // Remove class /sys/class/DEVICE_NAME
-    unregister_chrdev(majorNum, xstr(DEVICE_NAME));  // Unregister the device    
+    unregister_chrdev(majorNum, rfmdevice);  // Unregister the device    
 }
