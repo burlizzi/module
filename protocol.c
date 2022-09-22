@@ -27,7 +27,7 @@ int transmitPage(unsigned int offset)
 
 int receive(struct net_rfm* rec,size_t len)
 {
-    int blocks=size;
+    //int blocks=size;
     
     
     /*
@@ -43,7 +43,7 @@ int receive(struct net_rfm* rec,size_t len)
     line[16*3+1]='\n';
     line[16*3+2]=0;
     LOG(line);
-    /**/
+    */
 
 
     if (rec->offset<0 ||  rec->offset>=size)
@@ -53,14 +53,14 @@ int receive(struct net_rfm* rec,size_t len)
     }
     if (!blocks_array[rec->offset/PAGE_SIZE])
 	{
-		LOG("allocate page chunk:%d \n",rec->offset/PAGE_SIZE);
+		LOG("allocate page chunk:%lu \n",rec->offset/PAGE_SIZE);
 		blocks_array[rec->offset/PAGE_SIZE]=(char *)__get_free_pages(GFP_KERNEL, PAGES_ORDER);
 		
 	}
 
     if (len+(rec->offset % PAGE_SIZE)>PAGE_SIZE)
     {
-        LOG("packet not aligned to page:%d \n",len+(rec->offset % PAGE_SIZE));
+        LOG("packet not aligned to page:%lu \n",len+(rec->offset % PAGE_SIZE));
         return -1;
     }
 

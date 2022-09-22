@@ -156,7 +156,7 @@ const struct address_space_operations nfs_file_aops = {
 	.writepage = writepage,
 	.set_page_dirty = vrfm_page_dirty,
 /*	.direct_IO = direct_IO,
-/*	.readpage = nfs_readpage,
+	.readpage = nfs_readpage,
 	.readpages = nfs_readpages,
 	
 	.writepage = nfs_writepage,
@@ -217,7 +217,6 @@ static unsigned int mmap_fault( struct vm_fault *vmf)
 	struct page *page;
 	struct mmap_info *info;
 	struct vm_area_struct *vma=vmf->vma;
-    LOG("mmap_fault gfp_mask:%x pgoff:%ld\n",vmf->gfp_mask,vmf->pgoff);
 #else
 
 static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
@@ -227,6 +226,7 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 #endif
 // SEE:/usr/src/linux-4.1.39-56/drivers/net/appletalk/ltpc.c:1133
 
+//    LOG("mmap_fault gfp_mask:%x pgoff:%ld\n",vmf->gfp_mask,vmf->pgoff);
 	unsigned long offset = ((vmf->pgoff % PAGES_PER_BLOCK) << PAGE_SHIFT);
 	int block=vmf->pgoff>>PAGES_ORDER;
 
@@ -285,10 +285,13 @@ int page_mkclean(struct page *page);
 
 static void fb_deferred_io_work(struct work_struct *work)
 {
-	if (info->reference==0)
-		return;
 	struct page* page;
 	short *index;
+
+
+	if (info->reference==0)
+		return;
+
 	//const char* data;
 	//struct mmap_info* info=(struct mmap_info*)container_of(work, struct mmap_info, deferred_work);
 	//LOG("get atomic data\n");
@@ -312,7 +315,7 @@ static void fb_deferred_io_work(struct work_struct *work)
 			continue;
 		}
 
-		size_t i;
+//		size_t i;
 //		for (i = 0; i < PAGE_SIZE; i++)
 		{
 //			LOG("%s ",blocks_array[*index]);
@@ -392,7 +395,7 @@ int access(struct vm_area_struct *vma, unsigned long addr,
 		      void *buf, int len, int write)
 {
 	
-	LOG("ACCESS!!!!!!!!!!!!!!!!!!!!!!! addr:%lx buf:%p len:%d write:%d flags:%x\n ",addr,buf,len,write,vma->vm_flags);
+	LOG("ACCESS!!!!!!!!!!!!!!!!!!!!!!! addr:%lx buf:%p len:%d write:%d flags:%lx\n ",addr,buf,len,write,vma->vm_flags);
 	return 0;
 }
 
@@ -510,7 +513,7 @@ int memory_map (struct file * file, struct vm_area_struct * vma)
 			    vma->vm_page_prot)) {
 		LOG("memory_map: ERROR\n");					
 		return -EAGAIN;
-	}/**/
+	}*/
 	//mmap_open1(vma);    
 	
 

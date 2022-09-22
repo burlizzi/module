@@ -76,7 +76,7 @@ ssize_t device_file_read(
 
 ssize_t complete_write(struct file *filp,const char __user *buf,size_t count,loff_t *pos)
 {
-    
+    int retval;
     struct mmap_info *info = filp->private_data;
 
     printk( KERN_NOTICE "vrfm: Device file is written at offset = %i, write bytes count = %u\n", (int)*pos, (unsigned int)count );
@@ -93,8 +93,7 @@ ssize_t complete_write(struct file *filp,const char __user *buf,size_t count,lof
     //memcpy(info->data, "Hello from kernel this is file: ", 32);
 
     //printk( KERN_NOTICE "vrfm: received %s\n" , procfs_buffer);
-    int retval;
-    while (retval=sendpacket((*pos),count)==1)
+    while ((retval=sendpacket((*pos),count))==1)
                     //udelay(1)
                     ;
     if (retval==-1)
@@ -124,7 +123,7 @@ void allocatedata(struct mmap_info * info, size_t offset, size_t length)
 
         if (!info->data[block])
         {
-            LOG("allocate page chunk:%d \n",block);
+            LOG("allocate page chunk:%lu \n",block);
             info->data[block]=(char *)__get_free_pages(GFP_KERNEL, PAGES_ORDER);
             //info->data[block]=(char *)__get_free_pages(GFP_KERNEL| GFP_DMA | __GFP_NOWARN |__GFP_NORETRY, PAGES_ORDER);
             memset(info->data[block],0,PAGE_SIZE<<PAGES_ORDER);
@@ -166,13 +165,15 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
         }
         case IOCTL_RFM2G_ATOMIC_PEEK:
         {
-            char *myself = "ATOMIC_PEEK";
+            //char *myself = "ATOMIC_PEEK";
             RFM2GATOMIC  Data;     /* Info necessary to do the access         */
-    	    RFM2G_ADDR rfm2gAddr;  /* RFM address to read data              */
-            RFM2G_ADDR base;     /* Base address of RFM I/O or memory space */
+    	    //RFM2G_ADDR rfm2gAddr;  /* RFM address to read data              */
+            //RFM2G_ADDR base;     /* Base address of RFM I/O or memory space */
             RFM2G_UINT32 maxsize;  /* Max size of RFM I/O or memory space     */
             struct mmap_info *info = filp->private_data;
-
+            int offsetinpage;
+            int block;
+            char* dest;
 
 
             if( copy_from_user( (void *)&Data, (void *)arg,
@@ -210,11 +211,11 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
             maxsize = size;
             
 
-            int block=Data.offset/PAGE_SIZE;
+            block=Data.offset/PAGE_SIZE;
             
             allocatedata(info,Data.offset,Data.width );
-            int offsetinpage=Data.offset % PAGE_SIZE;
-            char* dest=(char*)&Data.data;
+            offsetinpage=Data.offset % PAGE_SIZE;
+            dest=(char*)&Data.data;
             if( unlikely(offsetinpage+Data.width>PAGE_SIZE))//we crossed the boundaries
             {
                 memcpy(dest, &info->data[block][offsetinpage],PAGE_SIZE-offsetinpage);
@@ -256,6 +257,11 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
         case IOCTL_RFM2G_WRITE:
         {
 			RFM2GTRANSFER rfm2gTransfer;
+            size_t start;
+            int len;
+            int block;
+            struct mmap_info *info = filp->private_data;
+
             if( copy_from_user( (void *)&rfm2gTransfer, (void *)arg,
                 sizeof(RFM2GTRANSFER) ) > 0 )
             {
@@ -267,18 +273,18 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
                 return( -EFAULT );
             }
 
-            struct mmap_info *info = filp->private_data;
-            int block=rfm2gTransfer.Offset/PAGE_SIZE;
+            
+            block=rfm2gTransfer.Offset/PAGE_SIZE;
 
             allocatedata(info,rfm2gTransfer.Offset,rfm2gTransfer.Length);
             
-            size_t start=rfm2gTransfer.Offset;
-            int len=rfm2gTransfer.Length;
+            start=rfm2gTransfer.Offset;
+            len=rfm2gTransfer.Length;
 
             for(;block<=((rfm2gTransfer.Offset+rfm2gTransfer.Length-1)/PAGE_SIZE);block++)
             {
                 char* thisblock=info->data[block];
-                size_t end=start+len;
+                //size_t end=start+len;
                 size_t startInThisBlock=start % PAGE_SIZE;
                 size_t len2endofpage=PAGE_SIZE-startInThisBlock;
                 if(len2endofpage>len)
@@ -312,11 +318,12 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
         }
         case IOCTL_RFM2G_READ_REG:
         {
-            printk(KERN_ERR": IOCTL_RFM2G_READ_REG\n" );
-
-   			RFM2GLINUXREGINFO rfm2gLinuxRegInfo;
+            RFM2GLINUXREGINFO rfm2gLinuxRegInfo;
             static char data[]={1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21};
 			void* pAddr = NULL;
+
+            printk(KERN_ERR": IOCTL_RFM2G_READ_REG\n" );
+   			
 
             if( copy_from_user( (void *)&rfm2gLinuxRegInfo, (void *)arg,
                 sizeof(RFM2GLINUXREGINFO) ) > 0 )

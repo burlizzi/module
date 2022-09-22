@@ -17,7 +17,7 @@ int main (int argc, char **argv)
 
 
     int configfd;
-    volatile char *address = NULL;
+    char *address = NULL;
     int i;
     
 
@@ -28,7 +28,7 @@ int main (int argc, char **argv)
         return -1;
     }
 
-    address = (volatile char *)mmap (NULL, PAGE_SIZE*400, PROT_READ | PROT_WRITE, MAP_SHARED, configfd, 0);
+    address = mmap (NULL, PAGE_SIZE*400, PROT_READ | PROT_WRITE, MAP_SHARED, configfd, 0);
     
     if (address == MAP_FAILED)
     {
@@ -57,11 +57,11 @@ int main (int argc, char **argv)
 
     }
 
-    memcpy (address , "AAAAAAAAAAAAAAAAAA", 6);
+    memcpy (address , S("AAAAAAAAAAAAAAAAAA"));
     sleep(1);
-    memcpy (address , "bbbbbbbbbbbbbbb", 6);
+    memcpy (address , S("bbbbbbbbbbbbbbb"));
     sleep(1);
-    memcpy (address , "ccccccccccccccc", 6);
+    memcpy (address , S("ccccccccccccccc"));
     sleep(1);
 //    mlock(address,PAGE_SIZE);
     printf ("Changed message: %s\n", address);

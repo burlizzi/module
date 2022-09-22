@@ -21,11 +21,11 @@ RFM2G_INT32
 RFM2gReadProcPage( char *buf, char **start, off_t offset, int len, int *unused,
                   void *data_unused)
 {
-    static char *me = "RFM2GReadProcPage()";
+    //static char *me = "RFM2GReadProcPage()";
     RFM2G_INT32 bytesRead = 0;  /* Returned length                        */
-    RFM2G_INT32 i;              /* Loop variable                          */
-    char device_num[10];        /* Indicates minor number in text message */
-    RFM2G_INT32 j;              /* Loop variable                          */
+    //RFM2G_INT32 i;              /* Loop variable                          */
+    //char device_num[10];        /* Indicates minor number in text message */
+    //RFM2G_INT32 j;              /* Loop variable                          */
 
     //WHENDEBUG(RFM2G_DBTRACE) printk(KERN_ERR"%s: Entering %s\n", devname, me);
 
@@ -117,7 +117,7 @@ RFM2gReadProcPage( char *buf, char **start, off_t offset, int len, int *unused,
 
         if( bytesRead > PAGE_SIZE-80 ) return( bytesRead );
     }
-/**/
+*/
     //WHENDEBUG(RFM2G_DBTRACE) printk(KERN_ERR"%s: Exiting %s\n", devname, me);
 
     return( bytesRead );
