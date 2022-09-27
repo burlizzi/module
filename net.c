@@ -8,14 +8,15 @@ unsigned char dest[ETH_ALEN] = {0xff,0xff,0xff,0xff,0xff,0xff}; //broadcast
 
 struct net_device* dev_eth;
 
+
 static char *netdevice = "eth0";
 module_param(netdevice, charp,S_IRUGO);
-MODULE_PARM_DESC(netdevice, "network interface to use");
+MODULE_PARM_DESC(netdevice, "network interface to use default=eth0");
 
 
-static bool jumbo = true;
-module_param(jumbo, bool,S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
-MODULE_PARM_DESC(jumbo, "use jumbo packet");
+static int pktsize = ETH_DATA_LEN;
+module_param(pktsize, int,S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+MODULE_PARM_DESC(pktsize, "ethernet packet size default=" __stringify(ETH_DATA_LEN) "");
 
 void p(const char* s)
 {
@@ -34,7 +35,7 @@ int sendpacket (unsigned int offset,unsigned int length)
     if(length<50)
         length=50;
 
-    if(length>CHUNK)
+    if(length>pktsize)
     {
         printk("vrfm: too big of a packet\n");
         return -1;
@@ -54,24 +55,25 @@ int sendpacket (unsigned int offset,unsigned int length)
     
 
     
-    skbt =alloc_skb(ETH_HLEN+4+length,GFP_KERNEL);      
+    skbt =alloc_skb(ETH_HLEN+sizeof(struct rfm_header)+length,GFP_KERNEL);      
     if (!skbt)
     {
         printk("vrfm: cannot allocate alloc_skb!!\n");
         return -1;
     }
-    skb_reserve(skbt,ETH_HLEN+4+length);
+    skb_reserve(skbt,ETH_HLEN+sizeof(struct rfm_header)+length);
 
     skb_reset_mac_header(skbt);
     
-    eth = (struct net_rfm*) skb_push(skbt, 4+length);
+    eth = (struct net_rfm*) skb_push(skbt, sizeof(struct rfm_header)+length);
     if (!eth)
     {
         printk("vrfm: cannot allocate skb_push!!\n");
         return -1;
     }
     //eth->len=PAGE_SIZE*PAGES_PER_BLOCK;
-    eth->offset=offset;
+    eth->header.offset=offset;
+    eth->header.size=length;
 
 //    printk("sendpacket %u %u %u %u |%s\n",offset,length,offset %PAGE_SIZE,(offset %PAGE_SIZE) + length,&blocks_array[block][offsetinpage]);
 
@@ -93,8 +95,8 @@ int sendpacket (unsigned int offset,unsigned int length)
 
     skbt->dev=dev_eth;
 
-    dev_hard_header(skbt,dev_eth,ETH_P_802_3,dest,dev_eth->dev_addr,0x612);
-    skbt->protocol = 0x612;
+    dev_hard_header(skbt,dev_eth,ETH_P_802_3,dest,dev_eth->dev_addr,PROT_NUMBER);
+    skbt->protocol = PROT_NUMBER;
     if (skb_network_header(skbt) < skbt->data ||
                 skb_network_header(skbt) > skb_tail_pointer(skbt)) 
     {
@@ -136,37 +138,14 @@ static int hook_func( struct sk_buff *skb,
 					 struct net_device *out)
 {
         struct ethhdr *eth;    
-        //size_t i,j;
-        //int len;
-        char line[17*3];
         
         eth= eth_hdr(skb);
         //unsigned char* data=skb->data;
-        memset(line,0,17*3);
         
 
-        if (ntohs(eth->h_proto)==0x0612)
+        if (ntohs(eth->h_proto)==PROT_NUMBER)
         if (memcmp(in->dev_addr,eth->h_source,ETH_ALEN))
         { 
-/*
-          //  print_mac_hdr(eth);
-            //len=(int)skb->tail-(int)skb->data;
-            LOG("p %d %p %s %x",skb->data_len,skb->data,in->dev_addr,eth->h_proto);
-    printk("orig: %02x:%02x:%02x:%02x:%02x:%02x\n",eth->h_source[0],eth->h_source[1],eth->h_source[2],eth->h_source[3],eth->h_source[4],eth->h_source[5]);
-    printk("orig: %02x:%02x:%02x:%02x:%02x:%02x\n",in->dev_addr[0],in->dev_addr[1],in->dev_addr[2],in->dev_addr[3],in->dev_addr[4],in->dev_addr[5]);
-            
-            //for (i = 0; i < 1; i++)
-            {
-              //  for ( j = 0; j < skb->len>14?14:skb->len; j++)
-                for ( i = 0; i < sizeof(struct ethhdr); i++)
-                {
-                    sprintf(line+i*3,"%02x ",data[i]);
-                }
-                line[16*3+1]='\n';
-                line[16*3+2]=0;
-                LOG(line);
-            }
-*/
             //if (skb->data) receive((struct net_rfm*)(skb->data));
             receive((struct net_rfm*)(skb->data),skb->len-sizeof(struct ethhdr));
         }
@@ -184,7 +163,7 @@ int handler_add_config (void)
         hook.func = (void *)hook_func;
         hook.dev = dev_eth;
         dev_add_pack(&hook);
-        printk("VRFM Protocol registered.\n");
+        printk("VRFM Protocol registered with packet type 0x%x. pktsize=%d\n",PROT_NUMBER,pktsize);
         return 0;
 
 }
@@ -210,10 +189,9 @@ int net_init(void)
 
     err=handler_add_config();
 
-
   
     if (err) {
-            printk (KERN_ERR "Could not register hook\n");
+            printk (KERN_ERR "Could not register network hook\n");
             return -1;
     }
     return 0;

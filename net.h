@@ -2,11 +2,23 @@
 #define NET_H
 
 #include "mmap.h"
+#include <linux/if_ether.h>
 #define ETH_ALEN 6
-#define CHUNK 1500
-struct net_rfm
+
+struct rfm_header
 {
     u_int32_t offset;
+    u_int16_t size;
+}__attribute__((packed));
+
+
+#define CHUNK (ETH_DATA_LEN-sizeof(struct rfm_header))
+
+
+
+struct net_rfm
+{
+    struct rfm_header header;
     char data[CHUNK];
 }__attribute__((packed));
 

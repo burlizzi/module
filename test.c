@@ -67,7 +67,7 @@ int main (int argc, char **argv)
     printf ("Changed message: %s\n", address);
     fprintf (log,"2\n");
     fflush(log);
-    memcpy (address , "ciao", 6);
+    memcpy (address , S("ciao"));
     fprintf (log,"3\n");
     fflush(log);
     //sleep(1);

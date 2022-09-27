@@ -202,12 +202,6 @@ void mmap_open1(struct vm_area_struct *vma)
 
 void mmap_close(struct vm_area_struct *vma)
 {
-	struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
-	LOG("mmap_close %d\n",info->reference);
-
-	info->reference--;
-	if (info->reference==0)
-	  cancel_delayed_work(&info->deferred_work);
 
 }
 
@@ -466,8 +460,11 @@ struct vm_operations_struct mmap_vm_ops = {
 
 int mmapfop_close(struct inode *inode, struct file *filp)
 {
-    LOG("mmapfop_close\n");
-	//mutex_unlock(&mmap_device_mutex);
+	struct mmap_info *info = (struct mmap_info *)filp->private_data;
+	info->reference--;
+    LOG("mmapfop_close reference=%d\n",info->reference);
+	if (info->reference==0)
+	  cancel_delayed_work(&info->deferred_work);
 	return 0;
 }
 

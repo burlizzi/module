@@ -2,6 +2,13 @@
 #define xstr(a) str(a)
 #define str(a) #a
 
+#ifndef DEVICE_NAME
+#define DEVICE_NAME vrfm
+#endif
+
+#ifndef MODULE_NAME
+#define MODULE_NAME rfm2g0
+#endif
 extern bool debug;
 #define LOG if (unlikely(debug)) printk
 
@@ -155,3 +162,5 @@ typedef struct rfm2gAtomic  /* Used for peeking and poking */
 #define IOCTL_RFM2G_SET_SPECIAL_MMAP_OFFSET  _IOW(RFM2G_MAGIC, 77, RFM2G_UINT64)
 
 #define  RFMOR_LAS1RR_RANGE_2M      0xFFE00000
+
+#define PROT_NUMBER 0x612

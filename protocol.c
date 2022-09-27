@@ -46,25 +46,25 @@ int receive(struct net_rfm* rec,size_t len)
     */
 
 
-    if (rec->offset<0 ||  rec->offset>=size)
+    if (rec->header.offset<0 ||  rec->header.offset>=size)
     {
-        LOG("invalid packet received:%d \n",rec->offset);
+        LOG("invalid packet received:%d \n",rec->header.offset);
         return -1;
     }
-    if (!blocks_array[rec->offset/PAGE_SIZE])
+    if (!blocks_array[rec->header.offset/PAGE_SIZE])
 	{
-		LOG("allocate page chunk:%lu \n",rec->offset/PAGE_SIZE);
-		blocks_array[rec->offset/PAGE_SIZE]=(char *)__get_free_pages(GFP_KERNEL, PAGES_ORDER);
+		LOG("allocate page chunk:%lu \n",rec->header.offset/PAGE_SIZE);
+		blocks_array[rec->header.offset/PAGE_SIZE]=(char *)__get_free_pages(GFP_KERNEL, PAGES_ORDER);
 		
 	}
 
-    if (len+(rec->offset % PAGE_SIZE)>PAGE_SIZE)
+    if (len+(rec->header.offset % PAGE_SIZE)>PAGE_SIZE)
     {
-        LOG("packet not aligned to page:%lu \n",len+(rec->offset % PAGE_SIZE));
+        LOG("packet not aligned to page:%lu \n",len+(rec->header.offset % PAGE_SIZE));
         return -1;
     }
 
-    //LOG("copy %d bytes page %d page_offset %d \n",len,rec->offset/PAGE_SIZE,rec->offset % PAGE_SIZE);
-    memcpy(blocks_array[rec->offset/PAGE_SIZE]+(rec->offset % PAGE_SIZE),rec->data,len);
+    //LOG("copy %d bytes page %d page_offset %d \n",len,rec->header.offset/PAGE_SIZE,rec->header.offset % PAGE_SIZE);
+    memcpy(blocks_array[rec->header.offset/PAGE_SIZE]+(rec->header.offset % PAGE_SIZE),rec->data,len);
     return 42;
 }

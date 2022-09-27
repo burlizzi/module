@@ -35,7 +35,7 @@ struct class *pClass;  // class_create will set this
 
 static char *rfmdevice = "rfm2g0";
 module_param(rfmdevice, charp,S_IRUGO);
-MODULE_PARM_DESC(rfmdevice, "RFM device to create");
+MODULE_PARM_DESC(rfmdevice, "RFM device to create default=rfm2g0");
 
 
 
@@ -61,19 +61,65 @@ ssize_t device_file_read(
 {
     struct mmap_info *info = file_ptr->private_data;
     
-    printk( KERN_NOTICE "vrfm: Device file is read at offset = %i, read bytes count = %u\n"
-        , (int)*position
-        , (unsigned int)count );
+    //printk( KERN_NOTICE "vrfm: Device file is read at offset = %i, read bytes count = %u\n", (int)*position, (unsigned int)count );
 
     if( *position >= size )
         return 0;
 
+    if( count >= PAGE_SIZE )
+        count = PAGE_SIZE;
+
     if( *position + count > size )
         count = size - *position;
 
+
+            int block=*position/PAGE_SIZE;
+            
+            
+            int offsetinpage=*position % PAGE_SIZE;
+            
+            if( unlikely(offsetinpage+count>PAGE_SIZE))//we crossed the boundaries
+            {
+                
+                if (info->data[block])
+                {
+                    printk( KERN_NOTICE "vrfm: block=%d, offset = %u size=%d\n",block,offsetinpage,PAGE_SIZE-offsetinpage);
+                    memcpy(user_buffer, &info->data[block][offsetinpage],PAGE_SIZE-offsetinpage);
+                }
+                else
+                {
+                    memset(user_buffer,0,PAGE_SIZE-offsetinpage);
+                }
+                    
+
+                if (info->data[block+1])
+                {
+                    printk( KERN_NOTICE "vrfm: block1=%d, offset = %u size=%d\n",block+1,0,count+offsetinpage-PAGE_SIZE);
+                    memcpy(user_buffer+PAGE_SIZE-offsetinpage, &info->data[block+1][0],count+offsetinpage-PAGE_SIZE);
+                }
+                else
+                    memset(user_buffer+PAGE_SIZE-offsetinpage,0,count+offsetinpage-PAGE_SIZE);
+
+                
+
+            }
+            else
+            {
+                if (info->data[block])
+                {
+                    printk( KERN_NOTICE "vrfm: block=%d, offset = %u size=%d\n",block,offsetinpage,count);
+                    memcpy(user_buffer, &info->data[block][offsetinpage],count);
+                }
+                else
+                    memset(user_buffer,0,count);
+                //
+            }
+                
+
+
     //if( copy_to_user(user_buffer, g_s_Hello_World_string + *position, count) != 0 )
-    if( copy_to_user(user_buffer, info->data + *position, count) != 0 )
-        return -EFAULT;
+    //if( copy_to_user(user_buffer, info->data + *position, count) != 0 )
+      //  return -EFAULT;
 
     *position += count;
     

@@ -5,7 +5,8 @@
         "scatterlist.h": "c",
         "netdevice.h": "c",
         "pgtable.h": "c",
-        "pgtable_types.h": "c"
+        "pgtable_types.h": "c",
+        "mmap.h": "c"
     },
     "C_Cpp.errorSquiggles": "Disabled"
 }
