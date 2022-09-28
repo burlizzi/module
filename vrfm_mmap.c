@@ -44,7 +44,7 @@ struct mmap_info *info = NULL;
 
 int size = MAP_SIZE; // default
 
-bool debug = true;
+bool debug = false;
 module_param(debug, bool,S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 
 
@@ -238,7 +238,7 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	if (vma->vm_file)
 		page->mapping = vma->vm_file->f_mapping;
 	else
-		printk(KERN_ERR "no mapping available\n");
+		LOG(KERN_ERR "no mapping available\n");
 
 
 	//set_memory_uc(vmf->virtual_address,1);
@@ -514,7 +514,7 @@ int memory_map (struct file * file, struct vm_area_struct * vma)
 
 int mmap_ops_init(void)
 {
-	printk("mmap_ops_init: size=%dM blocks:%d with %d pages/block\n",size/1024/1024,blocks,PAGES_PER_BLOCK);
+	LOG("mmap_ops_init: size=%dM blocks:%d with %d pages/block\n",size/1024/1024,blocks,PAGES_PER_BLOCK);
 
 	blocks_array=kmalloc(blocks*sizeof(char*), GFP_KERNEL);
 	memset(blocks_array,0,blocks*sizeof(char*));

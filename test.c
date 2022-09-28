@@ -36,8 +36,8 @@ int main (int argc, char **argv)
         return -1;
     }
 
-    FILE* log=fopen("/dev/stdout","w");
-    //FILE* log=fopen("/dev/kmsg","w");
+    //FILE* log=fopen("/dev/stdout","w");
+    FILE* log=fopen("/dev/kmsg","w");
 
     //memcpy (address + 11, "*user*", 6);
     //printf ("Initial message: %s\n", address);
@@ -57,11 +57,17 @@ int main (int argc, char **argv)
 
     }
 
+    fprintf (log,"a\n");
+    fflush(log);
     memcpy (address , S("AAAAAAAAAAAAAAAAAA"));
     sleep(1);
-    memcpy (address , S("bbbbbbbbbbbbbbb"));
+    fprintf (log,"b\n");
+    fflush(log);
+    memcpy (address +10, S("bbbbbbbbbbbbbbb"));
     sleep(1);
-    memcpy (address , S("ccccccccccccccc"));
+    fprintf (log,"c\n");
+    fflush(log);
+    memcpy (address+20 , S("ccccccccccccccc"));
     sleep(1);
 //    mlock(address,PAGE_SIZE);
     printf ("Changed message: %s\n", address);

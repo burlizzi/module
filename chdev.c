@@ -10,7 +10,7 @@
 #include "mmap.h"
 #include "config.h"
 
-
+extern int pktsize;
 #define MAX_BUFFER 1024
 
 char procfs_buffer[MAX_BUFFER];
@@ -64,7 +64,7 @@ ssize_t device_file_read(
     int offsetinpage;
     struct mmap_info *info = file_ptr->private_data;
     
-    //printk( KERN_NOTICE "vrfm: Device file is read at offset = %i, read bytes count = %u\n", (int)*position, (unsigned int)count );
+    //LOG( KERN_NOTICE "vrfm: Device file is read at offset = %i, read bytes count = %u\n", (int)*position, (unsigned int)count );
 
     if( *position >= size )
         return 0;
@@ -86,7 +86,7 @@ ssize_t device_file_read(
                 
                 if (info->data[block])
                 {
-                    printk( KERN_NOTICE "vrfm: block=%d, offset = %u size=%ld\n",block,offsetinpage,PAGE_SIZE-offsetinpage);
+                    //LOG( KERN_NOTICE "vrfm: block=%d, offset = %u size=%ld\n",block,offsetinpage,PAGE_SIZE-offsetinpage);
                     memcpy(user_buffer, &info->data[block][offsetinpage],PAGE_SIZE-offsetinpage);
                 }
                 else
@@ -97,7 +97,7 @@ ssize_t device_file_read(
 
                 if (info->data[block+1])
                 {
-                    printk( KERN_NOTICE "vrfm: block1=%d, offset = %u size=%ld\n",block+1,0,count+offsetinpage-PAGE_SIZE);
+                    //LOG( KERN_NOTICE "vrfm: block1=%d, offset = %u size=%ld\n",block+1,0,count+offsetinpage-PAGE_SIZE);
                     memcpy(user_buffer+PAGE_SIZE-offsetinpage, &info->data[block+1][0],count+offsetinpage-PAGE_SIZE);
                 }
                 else
@@ -110,7 +110,7 @@ ssize_t device_file_read(
             {
                 if (info->data[block])
                 {
-                    printk( KERN_NOTICE "vrfm: block=%d, offset = %u size=%ld\n",block,offsetinpage,count);
+                    //LOG( KERN_NOTICE "vrfm: block=%d, offset = %u size=%ld\n",block,offsetinpage,count);
                     memcpy(user_buffer, &info->data[block][offsetinpage],count);
                 }
                 else
@@ -134,7 +134,7 @@ ssize_t complete_write(struct file *filp,const char __user *buf,size_t count,lof
     int retval;
     struct mmap_info *info = filp->private_data;
 
-    printk( KERN_NOTICE "vrfm: Device file is written at offset = %i, write bytes count = %u\n", (int)*pos, (unsigned int)count );
+    LOG( KERN_NOTICE "vrfm: Device file is written at offset = %i, write bytes count = %u\n", (int)*pos, (unsigned int)count );
 
     if (count > MAX_BUFFER ) {
 		count = MAX_BUFFER;
@@ -147,7 +147,7 @@ ssize_t complete_write(struct file *filp,const char __user *buf,size_t count,lof
     
     //memcpy(info->data, "Hello from kernel this is file: ", 32);
 
-    //printk( KERN_NOTICE "vrfm: received %s\n" , procfs_buffer);
+    //LOG( KERN_NOTICE "vrfm: received %s\n" , procfs_buffer);
     while ((retval=sendpacket((*pos),count))==1)
                     //udelay(1)
                     ;
@@ -179,9 +179,12 @@ void allocatedata(struct mmap_info * info, size_t offset, size_t length)
         if (!info->data[block])
         {
             LOG("allocate page chunk:%lu \n",block);
+#if PAGES_ORDER
             info->data[block]=(char *)__get_free_pages(GFP_KERNEL, PAGES_ORDER);
-            //info->data[block]=(char *)__get_free_pages(GFP_KERNEL| GFP_DMA | __GFP_NOWARN |__GFP_NORETRY, PAGES_ORDER);
             memset(info->data[block],0,PAGE_SIZE<<PAGES_ORDER);
+#else
+            info->data[block]=(char *)get_zeroed_page(GFP_KERNEL);
+#endif            
         }
         else 
         {
@@ -204,13 +207,13 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
 	{
 //        WHENDEBUG(RFM2G_DBERROR)
         {
-            printk(KERN_ERR"%s: Exiting : invalid ioctl magic num = %d expected %d\n",
+            LOG(KERN_ERR"%s: Exiting : invalid ioctl magic num = %d expected %d\n",
                 me, _IOC_TYPE(cmd), RFM2G_MAGIC);
         }
 		return -ENOTTY;
 	}
 
-            //printk(KERN_ERR"%s: Exiting : invalid ioctl magic num = %d expected %d\n",me, _IOC_TYPE(cmd), RFM2G_MAGIC);
+            //LOG(KERN_ERR"%s: Exiting : invalid ioctl magic num = %d expected %d\n",me, _IOC_TYPE(cmd), RFM2G_MAGIC);
 
     switch( cmd )
     {
@@ -236,7 +239,7 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
             {
                 WHENDEBUG(RFM2G_DBERROR)
                 {
-                    printk(KERN_ERR"%s%d: Exiting %s: copy_from_user() failed\n",
+                    LOG(KERN_ERR"%s%d: Exiting %s: copy_from_user() failed\n",
                         devname, unit, me );
                 }
 
@@ -254,7 +257,7 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
                 {
                     WHENDEBUG(RFM2G_DBERROR)
                     {
-                        printk(KERN_ERR"%s%d: Exiting %s: Invalid data width %d\n",
+                        LOG(KERN_ERR"%s%d: Exiting %s: Invalid data width %d\n",
                             devname, unit, me, Data.width );
                     }
 
@@ -286,7 +289,7 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
             {
                 WHENDEBUG(RFM2G_DBERROR)
                 {
-                    printk(KERN_ERR"%s%d: Exiting %s: rfm2g_peek() failed\n",
+                    LOG(KERN_ERR"%s%d: Exiting %s: rfm2g_peek() failed\n",
                         devname, unit, me );
                 }
 
@@ -299,7 +302,7 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
             {
                 WHENDEBUG(RFM2G_DBERROR)
                 {
-                    printk(KERN_ERR"%s%d: Exiting %s: copy_to_user() failed\n",
+                    LOG(KERN_ERR"%s%d: Exiting %s: copy_to_user() failed\n",
                         devname, unit, me );
                 }
 
@@ -311,6 +314,7 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
 
         case IOCTL_RFM2G_WRITE:
         {
+            
 			RFM2GTRANSFER rfm2gTransfer;
             size_t start;
             int len;
@@ -320,17 +324,13 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
             if( copy_from_user( (void *)&rfm2gTransfer, (void *)arg,
                 sizeof(RFM2GTRANSFER) ) > 0 )
             {
-                WHENDEBUG(RFM2G_DBERROR)
-                {
-                    printk(KERN_ERR": Exiting %s: copy_from_user() failed \n",me );
-                }
-
+                LOG(KERN_ERR": Exiting %s: copy_from_user() failed \n",me );
                 return( -EFAULT );
             }
 
             
             block=rfm2gTransfer.Offset/PAGE_SIZE;
-
+            
             allocatedata(info,rfm2gTransfer.Offset,rfm2gTransfer.Length);
             
             start=rfm2gTransfer.Offset;
@@ -344,12 +344,12 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
                 size_t len2endofpage=PAGE_SIZE-startInThisBlock;
                 if(len2endofpage>len)
                     len2endofpage=len;
-                //printk("block %d start %d end %d len=%d len2endofpage %d\n",block,startInThisBlock,end,len,len2endofpage);
+                //LOG("block %d start %d end %d len=%d len2endofpage %d\n",block,startInThisBlock,end,len,len2endofpage);
 
                 
                 if (!thisblock)
                 {
-                    printk(KERN_ERR": Exiting %s: unallocated block %d \n",me,block );
+                    LOG(KERN_ERR": Exiting %s: unallocated block %d \n",me,block );
                     return( -EFAULT );
                 }
                 memcpy(&thisblock[startInThisBlock],((char*)rfm2gTransfer.Buffer)+startInThisBlock,len2endofpage);
@@ -360,16 +360,26 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
             start=rfm2gTransfer.Offset;
             for (len=rfm2gTransfer.Length;len>0;len-=CHUNK )
             {
-                while (sendpacket(start,len>CHUNK?CHUNK:len)==1)
-                    //udelay(1)
-                    ;
+                while (sendpacket(start,len>CHUNK?CHUNK:len)==1);
                 start+=CHUNK;
             }
          return( 0 );
         }
         case IOCTL_RFM2G_READ:
         {
-         return( 0 );
+			RFM2GTRANSFER rfm2gTransfer;
+            loff_t position;
+
+            if( copy_from_user( (void *)&rfm2gTransfer, (void *)arg,
+                sizeof(RFM2GTRANSFER) ) > 0 )
+            {
+                LOG(KERN_ERR": Exiting %s: copy_from_user() failed \n",me );
+                return( -EFAULT );
+            }
+
+            position=rfm2gTransfer.Offset;
+            device_file_read(filp,rfm2gTransfer.Buffer,rfm2gTransfer.Length,&position);
+            return( 0 );
         }
         case IOCTL_RFM2G_READ_REG:
         {
@@ -377,7 +387,7 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
             static char data[]={1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21};
 			void* pAddr = NULL;
 
-            printk(KERN_ERR": IOCTL_RFM2G_READ_REG\n" );
+            LOG(KERN_ERR": IOCTL_RFM2G_READ_REG\n" );
    			
 
             if( copy_from_user( (void *)&rfm2gLinuxRegInfo, (void *)arg,
@@ -385,11 +395,11 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
             {
                 WHENDEBUG(RFM2G_DBERROR)
                 {
-                    printk(KERN_ERR": Exiting %s: copy_from_user() failed\n", me );
+                    LOG(KERN_ERR": Exiting %s: copy_from_user() failed\n", me );
                 }
                 return( -EFAULT );
             }
-            printk(KERN_ERR": rfm2gLinuxRegInfo.regset=%d\n",rfm2gLinuxRegInfo.regset );
+            LOG(KERN_ERR": rfm2gLinuxRegInfo.regset=%d\n",rfm2gLinuxRegInfo.regset );
 
             switch(rfm2gLinuxRegInfo.regset)
             {
@@ -398,7 +408,7 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
                     break;
 
                 case RFM2GCFGREGMEM:
-                    printk(KERN_ERR": Exiting %s: good\n", me );
+                    LOG(KERN_ERR": Exiting %s: good\n", me );
                     pAddr = (void*) data;
                     break;
 
@@ -447,7 +457,7 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
             {
                 WHENDEBUG(RFM2G_DBERROR)
                 {
-                    printk(KERN_ERR": Exiting %s: copy_to_user() failed\n",
+                    LOG(KERN_ERR": Exiting %s: copy_to_user() failed\n",
                             me );
                 }
 
@@ -465,7 +475,7 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
 
             WHENDEBUG(RFM2G_DBIOCTL)
             {
-                printk(KERN_ERR "%d: %s cmd = %s\n",0, me, myself);
+                LOG(KERN_ERR "%d: %s cmd = %s\n",0, me, myself);
             }
 
 			/* Copy the common stuff over */
@@ -491,7 +501,7 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
             {
                 WHENDEBUG(RFM2G_DBERROR)
                 {
-                    printk(KERN_ERR "%d: Exiting %s: copy_to_user() failed\n",
+                    LOG(KERN_ERR "%d: Exiting %s: copy_to_user() failed\n",
                         0, me );
                 }
 
@@ -527,7 +537,7 @@ int chdev_init(void)
   // Register character device
   majorNum = register_chrdev(0, xstr(MODULE_NAME), &vrfm_driver_fops);
   if (majorNum < 0) {
-    printk(KERN_ALERT "Could not register device: %d\n", majorNum);
+    LOG(KERN_ALERT "Could not register device: %d\n", majorNum);
     return majorNum;
   }
   devNo = MKDEV(majorNum, 0);  // Create a dev_t, 32 bit version of numbers
@@ -539,14 +549,14 @@ int chdev_init(void)
 
 
   if (IS_ERR(pClass)) {
-    printk(KERN_WARNING "\ncan't create class");
+    LOG(KERN_WARNING "\ncan't create class");
     unregister_chrdev_region(devNo, 1);
     return -1;
   }
 
   // Create /dev/DEVICE_NAME for this char dev
   if (IS_ERR(pDev = device_create(pClass, NULL, devNo, NULL, rfmdevice))) {
-    printk(KERN_WARNING xstr(MODULE_NAME)".ko can't create device /dev/%s\n",rfmdevice);
+    LOG(KERN_WARNING xstr(MODULE_NAME)".ko can't create device /dev/%s\n",rfmdevice);
     class_destroy(pClass);
     unregister_chrdev_region(devNo, 1);
     return -1;

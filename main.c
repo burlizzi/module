@@ -27,7 +27,7 @@ RFM2gReadProcPage( char *buf, char **start, off_t offset, int len, int *unused,
     //char device_num[10];        /* Indicates minor number in text message */
     //RFM2G_INT32 j;              /* Loop variable                          */
 
-    //WHENDEBUG(RFM2G_DBTRACE) printk(KERN_ERR"%s: Entering %s\n", devname, me);
+    //WHENDEBUG(RFM2G_DBTRACE) LOG(KERN_ERR"%s: Entering %s\n", devname, me);
 
     bytesRead = sprintf( buf, "\nWelcome to the RFM2G proc page!\n\n" );
     if( bytesRead > PAGE_SIZE-80 ) return( bytesRead ); /* This is enough! */
@@ -118,7 +118,7 @@ RFM2gReadProcPage( char *buf, char **start, off_t offset, int len, int *unused,
         if( bytesRead > PAGE_SIZE-80 ) return( bytesRead );
     }
 */
-    //WHENDEBUG(RFM2G_DBTRACE) printk(KERN_ERR"%s: Exiting %s\n", devname, me);
+    //WHENDEBUG(RFM2G_DBTRACE) LOG(KERN_ERR"%s: Exiting %s\n", devname, me);
 
     return( bytesRead );
 
@@ -187,10 +187,11 @@ static void vrfm_driver_exit(void)
 {
     remove_proc_entry("rfm2g", NULL);
 
-    printk( KERN_NOTICE "vrfm: Exiting\n" );
+    printk( KERN_NOTICE "vrfm: terminating\n" );
     net_shutdown();
     chdev_shutdown();
     mmap_shutdown();
+    printk( KERN_NOTICE "vrfm: done\n" );
 }
 
 /*===============================================================================================*/

@@ -8,7 +8,7 @@
 struct rfm_header
 {
     u_int32_t offset;
-    u_int16_t size;
+    //u_int16_t size;
 }__attribute__((packed));
 
 

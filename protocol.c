@@ -7,7 +7,7 @@
 
 
 extern int size;
-
+extern int pktsize;
 
 
 
