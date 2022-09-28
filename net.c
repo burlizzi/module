@@ -117,6 +117,7 @@ retry:
         LOG("vrfm: tx dropped packet, retry!!\n");
         usleep_range(100,1000);
         return 1;
+#if LINUX_VERSION_CODE > KERNEL_VERSION(5,2,0)
         case NETDEV_TX_BUSY:
             usleep_range(1,10);
             if (__dev_direct_xmit(skbt,0)==NETDEV_TX_BUSY)
@@ -125,8 +126,8 @@ retry:
                 usleep_range(1,10);
                 goto retry;
             }
-            
             return 0;
+#endif    
         default:
             LOG("vrfm: cannot send packet!!\n");
             return -1;
