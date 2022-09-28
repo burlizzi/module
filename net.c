@@ -3,6 +3,7 @@
 #include "protocol.h"
 #include <linux/netdevice.h>
 #include <linux/moduleparam.h>
+#include <linux/version.h>
 
 unsigned char dest[ETH_ALEN] = {0xff,0xff,0xff,0xff,0xff,0xff}; //broadcast
 
@@ -104,8 +105,11 @@ int sendpacket (unsigned int offset,unsigned int length)
     }
     
 retry:
+#if LINUX_VERSION_CODE > KERNEL_VERSION(5,2,0)
     switch(__dev_direct_xmit(skbt,0))
-    // switch(dev_queue_xmit(skbt))
+#else    
+    switch(dev_queue_xmit(skbt))
+#endif    
     {
         case NET_XMIT_SUCCESS:
         break;
