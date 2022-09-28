@@ -123,57 +123,25 @@ static void fb_deferred_io_work(struct work_struct *work);
 
 
 
-static int write_end(struct file *file, struct address_space *mapping,
-			loff_t pos, unsigned len, unsigned copied,
-			struct page *page, void *fsdata)
-{
-	LOG("FINITOOOOOOOOOOOOOOOOOOOOOOOOOO\n");
-	unlock_page(page);
-	//page_cache_release(page);
-	return copied;
-}
 
-int writepage(struct page *page, struct writeback_control *wbc)
+static int fb_deferred_io_set_page_dirty(struct page *page)
 {
-	LOG("99999999999999999999999999999999999999999 writepage\n");
+	if (!PageDirty(page))
+		SetPageDirty(page);
 	return 0;
 }
-ssize_t direct_IO(struct kiocb *call, struct iov_iter *iter, loff_t offset)
-{
-	LOG("99999999999999999999999999999999999999999 direct_IO\n");
-	return 123;
-}
 
 
-int vrfm_page_dirty(struct page *page)
-{
-	LOG("99999999999999999999999999999999999999999 vrfm_page_dirty\n");
-	return 123;
-}
 
-const struct address_space_operations nfs_file_aops = {
-	.write_end = write_end,
-	.writepage = writepage,
-	.set_page_dirty = vrfm_page_dirty,
-/*	.direct_IO = direct_IO,
-	.readpage = nfs_readpage,
-	.readpages = nfs_readpages,
-	
-	.writepage = nfs_writepage,
-	.writepages = nfs_writepages,
-	.write_begin = nfs_write_begin,
-	.invalidatepage = nfs_invalidate_page,
-	.releasepage = nfs_release_page,
-	.direct_IO = nfs_direct_IO,
-	.migratepage = nfs_migrate_page,
-	.launder_page = nfs_launder_page,
-	.error_remove_page = generic_error_remove_page,*/
+static const struct address_space_operations fb_deferred_io_aops = {
+	.set_page_dirty = fb_deferred_io_set_page_dirty,
 };
+
 
 int mmap_open(struct inode *inode, struct file *filp)
 {
-	inode->i_mapping->a_ops=&nfs_file_aops;
-	
+	//inode->i_mapping->a_ops=&nfs_file_aops;
+	filp->f_mapping->a_ops = &fb_deferred_io_aops;
 #ifdef CONFIG_HAVE_IOREMAP_PROT
 	LOG("CONFIG_HAVE_IOREMAP_PROT\n");
 
@@ -202,8 +170,16 @@ void mmap_open1(struct vm_area_struct *vma)
 
 void mmap_close(struct vm_area_struct *vma)
 {
-
+	struct page* page;
+	short *index;
+	LOG("mmap_close %d\n",info->reference);
+	for ( index = dirt_pages; *index>=0  ; index++)
+	{
+		page=virt_to_page(blocks_array[*index]);
+		page->mapping = NULL;
+	}
 }
+
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(4,1,39)
 static unsigned int mmap_fault( struct vm_fault *vmf)
@@ -258,7 +234,13 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	}	
 
 	get_page(page);
-	
+
+	if (vmf->vma->vm_file)
+		page->mapping = vmf->vma->vm_file->f_mapping;
+	else
+		printk(KERN_ERR "no mapping available\n");
+
+
 	//set_memory_uc(vmf->virtual_address,1);
 
 	page->index = vmf->pgoff % PAGES_PER_BLOCK;
@@ -266,7 +248,7 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 
 	LOG("page:%p\n",page);
 
-	#define PAGE_MAPPING_MOVABLE 0x2
+	//#define PAGE_MAPPING_MOVABLE 0x2
 	//page->mapping = (long int)page->mapping | PAGE_MAPPING_MOVABLE;
 
 	vmf->page = page;
@@ -315,14 +297,25 @@ static void fb_deferred_io_work(struct work_struct *work)
 //			LOG("%s ",blocks_array[*index]);
 		}
 
-		transmitPage(*index);
-		if (page_mkclean(page))
-				set_page_dirty(page);
+		
+		
+		
+		if (PageDirty(page))
+		{
+			LOG("dirty %d\n",*index);
+			transmitPage(*index);
+			page_mkclean(page);
+			ClearPageDirty(page);
+			//set_page_dirty(page);
+			
+		}
+				
 		//clflush_cache_range(blocks_array[*index],4096);
 //		LOG("------------------------->>>>page sent %p %d\n",blocks_array[*index],*index);
 //		*index=-1;
 		//page_cache_release(page);
 		//pte_wrprotect(page);
+
 		unlock_page(page);
 		//put_page(page);
 		//udelay(1000);
@@ -333,7 +326,7 @@ static void fb_deferred_io_work(struct work_struct *work)
 		//clear_page(page);
 	}
 	
-	schedule_delayed_work(&info->deferred_work, HZ/50);
+	//schedule_delayed_work(&info->deferred_work, HZ/50);
 
 	
 	//LOG("data io_work= %s\n",data);
@@ -360,12 +353,12 @@ int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 	struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
 	LOG("page_mkwrite\n");
 	lock_page(vmf->page);
-	LOG("atomic_set\n");
+	
 	info->page=vmf->page;
 	info->x = myoff;
  	
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,10,0))	
-	LOG("page_mkwrite flags:%x pgoff:%d pgoff:%ld page:%p\n ",vmf->flags,myoff,vmf->pgoff,vmf->page);
+	LOG("page_mkwrite flags:%x offset:%ld pgoff:%ld page:%p\n ",vmf->flags,vmf->address-vma->vm_start,vmf->pgoff,vmf->page);
 #else
 	LOG("page_mkwrite flags:%x pgoff:%d max_pgoff:%ld page:%p\n ",vmf->flags,myoff,vmf->max_pgoff,vmf->page);
 #endif
@@ -379,7 +372,6 @@ int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 	*index=myoff;
 	schedule_delayed_work(&info->deferred_work, 1);
 
-	//page_cache_release(info->page);
 	return VM_FAULT_LOCKED;
 
 }

@@ -59,6 +59,9 @@ ssize_t device_file_read(
     , size_t count
     , loff_t *position)
 {
+    
+    int block;
+    int offsetinpage;
     struct mmap_info *info = file_ptr->private_data;
     
     //printk( KERN_NOTICE "vrfm: Device file is read at offset = %i, read bytes count = %u\n", (int)*position, (unsigned int)count );
@@ -73,17 +76,17 @@ ssize_t device_file_read(
         count = size - *position;
 
 
-            int block=*position/PAGE_SIZE;
+            block=*position/PAGE_SIZE;
             
             
-            int offsetinpage=*position % PAGE_SIZE;
+            offsetinpage=*position % PAGE_SIZE;
             
             if( unlikely(offsetinpage+count>PAGE_SIZE))//we crossed the boundaries
             {
                 
                 if (info->data[block])
                 {
-                    printk( KERN_NOTICE "vrfm: block=%d, offset = %u size=%d\n",block,offsetinpage,PAGE_SIZE-offsetinpage);
+                    printk( KERN_NOTICE "vrfm: block=%d, offset = %u size=%ld\n",block,offsetinpage,PAGE_SIZE-offsetinpage);
                     memcpy(user_buffer, &info->data[block][offsetinpage],PAGE_SIZE-offsetinpage);
                 }
                 else
@@ -94,7 +97,7 @@ ssize_t device_file_read(
 
                 if (info->data[block+1])
                 {
-                    printk( KERN_NOTICE "vrfm: block1=%d, offset = %u size=%d\n",block+1,0,count+offsetinpage-PAGE_SIZE);
+                    printk( KERN_NOTICE "vrfm: block1=%d, offset = %u size=%ld\n",block+1,0,count+offsetinpage-PAGE_SIZE);
                     memcpy(user_buffer+PAGE_SIZE-offsetinpage, &info->data[block+1][0],count+offsetinpage-PAGE_SIZE);
                 }
                 else
@@ -107,7 +110,7 @@ ssize_t device_file_read(
             {
                 if (info->data[block])
                 {
-                    printk( KERN_NOTICE "vrfm: block=%d, offset = %u size=%d\n",block,offsetinpage,count);
+                    printk( KERN_NOTICE "vrfm: block=%d, offset = %u size=%ld\n",block,offsetinpage,count);
                     memcpy(user_buffer, &info->data[block][offsetinpage],count);
                 }
                 else
