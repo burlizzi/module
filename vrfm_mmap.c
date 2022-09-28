@@ -235,8 +235,8 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 
 	get_page(page);
 
-	if (vmf->vma->vm_file)
-		page->mapping = vmf->vma->vm_file->f_mapping;
+	if (vma->vm_file)
+		page->mapping = vma->vm_file->f_mapping;
 	else
 		printk(KERN_ERR "no mapping available\n");
 
