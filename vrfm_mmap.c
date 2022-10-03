@@ -181,7 +181,7 @@ void mmap_close(struct vm_area_struct *vma)
 }
 
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(4,1,39)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(4,17,0)
 static unsigned int mmap_fault( struct vm_fault *vmf)
 {
 	struct page *page;
@@ -336,7 +336,7 @@ static void fb_deferred_io_work(struct work_struct *work)
 
 
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,10,0))	
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0))	
 vm_fault_t page_mkwrite(struct vm_fault *vmf)
 {
 struct vm_area_struct *vma=vmf->vma;
@@ -345,7 +345,7 @@ int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 {
 #endif
 	short *index;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,10,0))	
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0))	
 	int myoff=((long unsigned int)vmf->address-vma->vm_start)/PAGE_SIZE/PAGES_PER_BLOCK;
 #else
 	int myoff=((long unsigned int)vmf->virtual_address-vma->vm_start)/PAGE_SIZE/PAGES_PER_BLOCK;
@@ -357,7 +357,7 @@ int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 	info->page=vmf->page;
 	info->x = myoff;
  	
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,10,0))	
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0))	
 	LOG("page_mkwrite flags:%x offset:%ld pgoff:%ld page:%p\n ",vmf->flags,vmf->address-vma->vm_start,vmf->pgoff,vmf->page);
 #else
 	LOG("page_mkwrite flags:%x pgoff:%d max_pgoff:%ld page:%p\n ",vmf->flags,myoff,vmf->max_pgoff,vmf->page);
@@ -387,7 +387,7 @@ int access(struct vm_area_struct *vma, unsigned long addr,
 
 void map_pages(struct vm_area_struct *vma, struct vm_fault *vmf)
 {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,10,0))	
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0))	
 	LOG("map_pages flags:%x pgoff:%ld pgoff:%ld page:%p\n ",vmf->flags,vmf->pgoff,vmf->pgoff,vmf->page);
 #else
 	LOG("map_pages flags:%x pgoff:%ld max_pgoff:%ld page:%p\n ",vmf->flags,vmf->pgoff,vmf->max_pgoff,vmf->page);

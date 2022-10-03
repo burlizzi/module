@@ -36,8 +36,8 @@ int main (int argc, char **argv)
         return -1;
     }
 
-    //FILE* log=fopen("/dev/stdout","w");
-    FILE* log=fopen("/dev/kmsg","w");
+    FILE* log=fopen("/dev/stdout","w");
+    //FILE* log=fopen("/dev/kmsg","w");
 
     //memcpy (address + 11, "*user*", 6);
     //printf ("Initial message: %s\n", address);
