@@ -474,12 +474,12 @@ static inline int private_mapping_ok(struct vm_area_struct *vma)
 {
 	return vma->vm_flags & VM_MAYSHARE;
 }
-
+/*
 inline int valid_phys_addr_range(phys_addr_t addr, size_t count)
 {
 	return addr + count <= __pa(high_memory);
 }
-
+*/
 
 
 int memory_map (struct file * file, struct vm_area_struct * vma)
@@ -497,7 +497,7 @@ int memory_map (struct file * file, struct vm_area_struct * vma)
 
     vma->vm_ops = &mmap_vm_ops;
 
-	vma->vm_flags |= VM_DONTEXPAND | VM_DONTDUMP/* | VM_IO | VM_MIXEDMAP*/;
+	vma->vm_flags |= VM_DONTEXPAND | /*VM_DONTDUMP | VM_IO | VM_MIXEDMAP*/;
 	vma->vm_flags |= VM_IO;
 
 	vma->vm_private_data = file->private_data;
