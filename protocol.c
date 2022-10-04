@@ -2,7 +2,7 @@
 #include "protocol.h"
 #include "net.h"
 #include <linux/netdevice.h>
-#include <linux/lz4.h>
+//#include <linux/lz4.h>
 #include "mmap.h"
 
 
