@@ -181,7 +181,13 @@ void mmap_close(struct vm_area_struct *vma)
 }
 
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(4,10,0)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(4,17,0)
+static vm_fault_t mmap_fault( struct vm_fault *vmf)
+{
+	struct page *page;
+	struct mmap_info *info;
+	struct vm_area_struct *vma=vmf->vma;
+#elif LINUX_VERSION_CODE > KERNEL_VERSION(4,10,0)
 static int mmap_fault( struct vm_fault *vmf)
 {
 	struct page *page;
@@ -336,7 +342,11 @@ static void fb_deferred_io_work(struct work_struct *work)
 
 
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,10,0))	
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0))	
+vm_fault_t page_mkwrite(struct vm_fault *vmf)
+{
+struct vm_area_struct *vma=vmf->vma;
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(4,10,0))	
 int page_mkwrite(struct vm_fault *vmf)
 {
 struct vm_area_struct *vma=vmf->vma;
