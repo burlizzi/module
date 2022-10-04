@@ -497,7 +497,7 @@ int memory_map (struct file * file, struct vm_area_struct * vma)
 
     vma->vm_ops = &mmap_vm_ops;
 
-	vma->vm_flags |= VM_DONTEXPAND | /*VM_DONTDUMP | VM_IO | VM_MIXEDMAP*/;
+	vma->vm_flags |= VM_DONTEXPAND /*| VM_DONTDUMP | VM_IO | VM_MIXEDMAP*/;
 	vma->vm_flags |= VM_IO;
 
 	vma->vm_private_data = file->private_data;
