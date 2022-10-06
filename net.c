@@ -97,6 +97,7 @@ int sendpacket (unsigned int offset,unsigned int length)
     skbt->dev=dev_eth;
     eth->header.offset=offset;
     eth->header.crc=crc32(0,eth->data,length);    
+    LOG("crc %x len %d",eth->header.crc,length);
 
     dev_hard_header(skbt,dev_eth,ETH_P_802_3,dest,dev_eth->dev_addr,PROT_NUMBER);
     skbt->protocol = PROT_NUMBER;
@@ -171,7 +172,7 @@ static int hook_func( struct sk_buff *skb,
             unsigned int len=skb->len-sizeof(struct ethhdr);
             LOG("received data\n");
             if (data->header.crc!=crc32(0,data->data,len))
-                LOG("CRC ERROR %x,%x\n",data->header.crc,crc32(0,data->data,len));
+                LOG("CRC ERROR %x,%x len=%d\n",data->header.crc,crc32(0,data->data,len),len);
 
             
             //if (skb->data) receive((struct net_rfm*)(skb->data));
