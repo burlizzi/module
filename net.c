@@ -167,9 +167,16 @@ static int hook_func( struct sk_buff *skb,
         if (ntohs(eth->h_proto)==PROT_NUMBER)
         if (memcmp(in->dev_addr,eth->h_source,ETH_ALEN))
         { 
+            struct net_rfm* data=(struct net_rfm*)(skb->data);
+            unsigned int len=skb->len-sizeof(struct ethhdr);
             LOG("received data\n");
+            if (data->header.crc!=crc32(0,data->data,len))
+                LOG("CRC ERROR\n");
+
+            
             //if (skb->data) receive((struct net_rfm*)(skb->data));
-            receive((struct net_rfm*)(skb->data),skb->len-sizeof(struct ethhdr));
+            
+            receive(data,len);
         }
         
 

@@ -303,12 +303,13 @@ static int fb_deferred_io_work(void* data)
 			
 			if (PageDirty(page))
 			{
+				ktime_t time1;
 				LOG("dirty %d\n",*index);
-				ktime_t time1=ktime_get();
+				time1=ktime_get();
 				
 				transmitPage(*index);
 				
-				LOG("time %d\n",ktime_get()-time1);
+				LOG("time %lld\n",ktime_get()-time1);
 				page_mkclean(page);
 				ClearPageDirty(page);
 				
