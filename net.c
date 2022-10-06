@@ -1,6 +1,7 @@
 #include "config.h"
 #include "net.h"
 #include "protocol.h"
+#include <linux/crc32.h>
 #include <linux/netdevice.h>
 #include <linux/moduleparam.h>
 #include <linux/version.h>
@@ -73,7 +74,6 @@ int sendpacket (unsigned int offset,unsigned int length)
         return -1;
     }
     //eth->len=PAGE_SIZE*PAGES_PER_BLOCK;
-    eth->header.offset=offset;
     //eth->header.size=length;
 
 //    LOG("sendpacket %u %u %u %u |%s\n",offset,length,offset %PAGE_SIZE,(offset %PAGE_SIZE) + length,&blocks_array[block][offsetinpage]);
@@ -95,6 +95,8 @@ int sendpacket (unsigned int offset,unsigned int length)
 
 
     skbt->dev=dev_eth;
+    eth->header.offset=offset;
+    eth->header.crc=crc32_le(0,eth->data,length);    
 
     dev_hard_header(skbt,dev_eth,ETH_P_802_3,dest,dev_eth->dev_addr,PROT_NUMBER);
     skbt->protocol = PROT_NUMBER;
@@ -104,8 +106,8 @@ int sendpacket (unsigned int offset,unsigned int length)
         LOG("error: %d %ld %d \n",skb_network_header(skbt) < skbt->data , (long)skbt->data, (int)(skb_network_header(skbt) > skb_tail_pointer(skbt)));
     }
     
-retry:
 #if LINUX_VERSION_CODE > KERNEL_VERSION(5,2,0)
+retry:
     switch(__dev_direct_xmit(skbt,0))
 #else    
     switch(dev_queue_xmit(skbt))

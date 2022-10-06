@@ -2,6 +2,7 @@
 #include <signal.h>
 #include <string.h>
 #include <fcntl.h>
+#include <time.h>
 #include <sys/mman.h>
 #include <unistd.h> // close function
 #define S(x) x,sizeof(x)
@@ -9,6 +10,20 @@
 #define PAGE_SIZE     4096
 #define PAGE_SHIFT    12
 
+
+
+struct timespec diff(struct timespec start,struct  timespec end)
+{
+    struct timespec temp;
+    if ((end.tv_nsec-start.tv_nsec)<0) {
+        temp.tv_sec = end.tv_sec-start.tv_sec-1;
+        temp.tv_nsec = 1000000000+end.tv_nsec-start.tv_nsec;
+    } else {
+        temp.tv_sec = end.tv_sec-start.tv_sec;
+        temp.tv_nsec = end.tv_nsec-start.tv_nsec;
+    }
+    return temp;
+}
 
 int main (int argc, char **argv)
 {
@@ -42,8 +57,26 @@ int main (int argc, char **argv)
     //memcpy (address + 11, "*user*", 6);
     //printf ("Initial message: %s\n", address);
     //sleep(1);
+
     fprintf (log,"0\n");
     fflush(log);
+    struct timespec time1, time2;
+    int temp;
+    
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &time1);
+    while(1)
+    {
+        if(address[1]==address[2])
+        {
+            clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &time2);
+            printf ("ping round: %d ms\n", diff(time1,time2).tv_nsec/1000000);
+            clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &time1);
+            address[1]++;
+        }
+
+    }
+    return 0;
+
 
     printf ("Changed message: %p %s\n", address, address);
     fprintf (log,"1\n");

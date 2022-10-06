@@ -34,11 +34,13 @@
 #include <linux/delay.h>
 #include <linux/interrupt.h>
 #include <linux/seq_file.h>
-
+#include <linux/kthread.h>  // for threads
 
 //static DEFINE_MUTEX(mmap_device_mutex);
 struct mmap_info *info = NULL;
 
+static struct task_struct *thread1;
+struct mutex etx_mutex; 
 
 
 
@@ -119,7 +121,7 @@ module_param_cb(size, &size_op_ops, &size, S_IRUGO|S_IWUSR);
 
 
 
-static void fb_deferred_io_work(struct work_struct *work);
+
 
 
 
@@ -131,6 +133,8 @@ static int fb_deferred_io_set_page_dirty(struct page *page)
 	return 0;
 }
 
+
+static int fb_deferred_io_work(void* data);
 
 
 static const struct address_space_operations fb_deferred_io_aops = {
@@ -157,6 +161,12 @@ int mmap_open(struct inode *inode, struct file *filp)
 	filp->private_data = info;    
 	info->reference++;
 	LOG("mmap_open1 %d\n",info->reference);
+	thread1 = kthread_create(fb_deferred_io_work,NULL,"thread");
+    if((thread1))
+        {
+        LOG(KERN_INFO "in if");
+        wake_up_process(thread1);
+        }
 
     return 0;
 }
@@ -265,78 +275,55 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 
 int page_mkclean(struct page *page);
 
-static void fb_deferred_io_work(struct work_struct *work)
+static int fb_deferred_io_work(void* data)
 {
 	struct page* page;
 	short *index;
 
 
-	if (info->reference==0)
-		return;
-
-	//const char* data;
-	//struct mmap_info* info=(struct mmap_info*)container_of(work, struct mmap_info, deferred_work);
-	//LOG("get atomic data\n");
-    
-	
-	//udelay(1000);
-	//LOG("waiting for the process to release lock\n");
-	
-	//LOG("fb_deferred_io_work %p(%d)\n",dirt_pages,*dirt_pages);
-	//data=info->data[info->x];
-	for ( index = dirt_pages; *index>=0  ; index++)
+	while (info->reference)
 	{
+		LOG("???????????????????????????????????????????????????wakeup\n");
+		mutex_lock(&etx_mutex);
 		
-
-
-		page=virt_to_page(blocks_array[*index]);
-		lock_page(page);
-		if (!blocks_array[*index])
+		LOG("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!wakeup\n");
+		for ( index = dirt_pages; *index>=0  ; index++)
 		{
-			LOG("ERROR %p %d\n",blocks_array[*index],*index);
-			continue;
-		}
-
-//		size_t i;
-//		for (i = 0; i < PAGE_SIZE; i++)
-		{
-//			LOG("%s ",blocks_array[*index]);
-		}
-
-		
-		
-		
-		if (PageDirty(page))
-		{
-			LOG("dirty %d\n",*index);
-			transmitPage(*index);
-			page_mkclean(page);
-			ClearPageDirty(page);
-			//set_page_dirty(page);
 			
-		}
+
+
+			page=virt_to_page(blocks_array[*index]);
+			lock_page(page);
+			if (!blocks_array[*index])
+			{
+				LOG("ERROR %p %d\n",blocks_array[*index],*index);
+				continue;
+			}
+
+			
+			if (PageDirty(page))
+			{
+				LOG("dirty %d\n",*index);
+				transmitPage(*index);
+				page_mkclean(page);
+				ClearPageDirty(page);
 				
-		//clflush_cache_range(blocks_array[*index],4096);
-//		LOG("------------------------->>>>page sent %p %d\n",blocks_array[*index],*index);
-//		*index=-1;
-		//page_cache_release(page);
-		//pte_wrprotect(page);
+			}
+					
+			unlock_page(page);
+		}
+		//mutex_unlock(&etx_mutex);
+		if(kthread_should_stop()) {
+			LOG(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> terminato\n");
+			do_exit(0);
+		}
 
-		unlock_page(page);
-		//put_page(page);
-		//udelay(1000);
-		//set_memory_wb(blocks_array[*index],1);
-		//__native_flush_tlb();
-		//
-		//flush_icache_range(page, page + PAGE_SIZE);
-		//clear_page(page);
 	}
-	
-	//schedule_delayed_work(&info->deferred_work, HZ/50);
 
-	
-	//LOG("data io_work= %s\n",data);
-	//LOG("finished unlocked\n");
+
+	LOG(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> finito\n");
+
+	return 0;
 }
 
 
@@ -380,7 +367,11 @@ int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 		}
 	}
 	*index=myoff;
-	schedule_delayed_work(&info->deferred_work, 1);
+	LOG("unlocking \n");
+	mutex_unlock(&etx_mutex);
+	//schedule_delayed_work(&info->deferred_work, 1);
+
+
 
 	return VM_FAULT_LOCKED;
 
@@ -466,7 +457,14 @@ int mmapfop_close(struct inode *inode, struct file *filp)
 	info->reference--;
     LOG("mmapfop_close reference=%d\n",info->reference);
 	if (info->reference==0)
-	  cancel_delayed_work(&info->deferred_work);
+	{
+		if(!kthread_stop(thread1))
+			printk(KERN_INFO "Thread stopped");
+
+	}
+
+	//  cancel_delayed_work(&info->deferred_work);
+
 	return 0;
 }
 
@@ -536,9 +534,14 @@ int mmap_ops_init(void)
 	
 
 	info->data = blocks_array;
+	info->reference = 0;
 	//info->delay=0;
 
- 	INIT_DELAYED_WORK(&info->deferred_work, fb_deferred_io_work);
+ 	//INIT_DELAYED_WORK(&info->deferred_work, fb_deferred_io_work);
+
+	mutex_init(&etx_mutex);	
+	mutex_lock(&etx_mutex);
+
 	
    //mutex_init(&mmap_device_mutex);
    return 0;
