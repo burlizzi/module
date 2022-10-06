@@ -304,7 +304,11 @@ static int fb_deferred_io_work(void* data)
 			if (PageDirty(page))
 			{
 				LOG("dirty %d\n",*index);
+				ktime_t time1=ktime_get();
+				
 				transmitPage(*index);
+				
+				LOG("time %d\n",ktime_get()-time1);
 				page_mkclean(page);
 				ClearPageDirty(page);
 				
@@ -458,8 +462,9 @@ int mmapfop_close(struct inode *inode, struct file *filp)
     LOG("mmapfop_close reference=%d\n",info->reference);
 	if (info->reference==0)
 	{
+		mutex_unlock(&etx_mutex);
 		if(!kthread_stop(thread1))
-			printk(KERN_INFO "Thread stopped");
+			LOG(KERN_INFO "Thread stopped");
 
 	}
 

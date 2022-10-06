@@ -167,6 +167,7 @@ static int hook_func( struct sk_buff *skb,
         if (ntohs(eth->h_proto)==PROT_NUMBER)
         if (memcmp(in->dev_addr,eth->h_source,ETH_ALEN))
         { 
+            LOG("received data\n");
             //if (skb->data) receive((struct net_rfm*)(skb->data));
             receive((struct net_rfm*)(skb->data),skb->len-sizeof(struct ethhdr));
         }
