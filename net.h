@@ -5,11 +5,21 @@
 #include <linux/if_ether.h>
 #define ETH_ALEN 6
 
+enum vrfm_packet_type
+{
+    VRFM_MEM_SEND,
+    VRFM_DUMP_ALL,
+
+};
+
 struct rfm_header
 {
     u_int32_t offset;
-    u_int32_t crc;
     u_int16_t size;
+    u_int32_t crc;
+    u_int16_t seq;
+    enum vrfm_packet_type cmd:8;
+    
 }__attribute__((packed));
 
 

@@ -28,9 +28,10 @@ int transmitPage(unsigned int offset)
 
 int receive(struct net_rfm* rec,size_t len)
 {
+    //struct page* page;
     //mutex_lock(&mem_mutex);
 
-    //struct page* page;
+    
     if (rec->header.offset<0 ||  rec->header.offset>=size)
     {
         LOG("invalid packet received:%d \n",rec->header.offset);
@@ -53,7 +54,34 @@ int receive(struct net_rfm* rec,size_t len)
     //LOG("copy %d bytes page %d page_offset %d \n",len,rec->header.offset/PAGE_SIZE,rec->header.offset % PAGE_SIZE);
     //page=virt_to_page(blocks_array[rec->header.offset/PAGE_SIZE]);
     //lock_page(page);
-    memcpy(blocks_array[rec->header.offset/PAGE_SIZE]+(rec->header.offset % PAGE_SIZE),rec->data,len);
+    switch (rec->header.cmd)
+    {
+    case VRFM_DUMP_ALL:
+        {
+            size_t i;
+            for (i = 0; i < MAP_SIZE/PAGE_SIZE/PAGES_PER_BLOCK; i++)
+            {
+                if (blocks_array[i])
+                    transmitPage(i);
+            }
+
+        }
+        break;
+    case VRFM_MEM_SEND:
+        if(unlikely(rec->header.offset+len>PAGE_SIZE))//we crossed the boundaries
+        {
+            int offsetinpage=rec->header.offset % PAGE_SIZE;
+            memcpy(blocks_array[rec->header.offset/PAGE_SIZE]+(offsetinpage),rec->data,PAGE_SIZE-offsetinpage);
+            memcpy(blocks_array[rec->header.offset/PAGE_SIZE+1]+(offsetinpage),rec->data,len+offsetinpage-PAGE_SIZE);
+        }
+        else
+            memcpy(blocks_array[rec->header.offset/PAGE_SIZE]+(rec->header.offset % PAGE_SIZE),rec->data,len);
+        break;
+    
+    default:
+        break;
+    }
+    
     //mutex_unlock(&mem_mutex);
     //unlock_page(page);
     return 42;

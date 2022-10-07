@@ -216,9 +216,12 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 #endif
 // SEE:/usr/src/linux-4.1.39-56/drivers/net/appletalk/ltpc.c:1133
 
-//    LOG("mmap_fault gfp_mask:%x pgoff:%ld\n",vmf->gfp_mask,vmf->pgoff);
+    
 	unsigned long offset = ((vmf->pgoff % PAGES_PER_BLOCK) << PAGE_SHIFT);
 	int block=vmf->pgoff>>PAGES_ORDER;
+	LOG("mmap_fault gfp_mask:%x pgoff:%ld flags=%x\n",vmf->gfp_mask,vmf->pgoff,vmf->flags);
+	mutex_lock(&mem_mutex);
+	
 
 	info = (struct mmap_info *)vma->vm_private_data;
 
@@ -274,6 +277,7 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	vmf->page = page;
 
 	lock_page(page);
+	mutex_unlock(&mem_mutex);
 	return VM_FAULT_LOCKED;
 }
 
@@ -298,6 +302,7 @@ static int fb_deferred_io_work(void* data)
 
 			page=virt_to_page(blocks_array[*index]);
 			lock_page(page);
+			//LOG("lock\n");
 			if (!blocks_array[*index])
 			{
 				LOG("ERROR %p %d\n",blocks_array[*index],*index);
@@ -319,6 +324,7 @@ static int fb_deferred_io_work(void* data)
 				
 			}
 					
+			//LOG("unlock\n");
 			unlock_page(page);
 		}
 		mutex_unlock(&mem_mutex);
@@ -357,16 +363,15 @@ int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 	int myoff=((long unsigned int)vmf->virtual_address-vma->vm_start)/PAGE_SIZE/PAGES_PER_BLOCK;
 #endif
 	struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
-	LOG("page_mkwrite\n");
 	lock_page(vmf->page);
 	
 	info->page=vmf->page;
 	info->x = myoff;
  	
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0))	
-	LOG("page_mkwrite flags:%x offset:%ld pgoff:%ld page:%p\n ",vmf->flags,vmf->address-vma->vm_start,vmf->pgoff,vmf->page);
+	LOG("page_mkwrite flags:%x offset:%ld pgoff:%ld page:%p\n",vmf->flags,vmf->address-vma->vm_start,vmf->pgoff,vmf->page);
 #else
-	LOG("page_mkwrite flags:%x pgoff:%d page:%p\n ",vmf->flags,myoff,vmf->page);
+	LOG("page_mkwrite flags:%x pgoff:%d page:%p\n",vmf->flags,myoff,vmf->page);
 #endif
 	for ( index = dirt_pages; *index>=0  && myoff!=*index ; index++)
 	{
@@ -376,7 +381,7 @@ int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 		}
 	}
 	*index=myoff;
-	LOG("unlocking \n");
+	//LOG("unlocking \n");
 	mutex_unlock(&etx_mutex);
 	//schedule_delayed_work(&info->deferred_work, 1);
 
