@@ -4,7 +4,7 @@
 #include <linux/netdevice.h>
 //#include <linux/lz4.h>
 #include "mmap.h"
-
+#include <linux/pagemap.h>
 
 extern int size;
 extern int pktsize;
@@ -65,6 +65,9 @@ int receive(struct net_rfm* rec,size_t len)
     }
 
     //LOG("copy %d bytes page %d page_offset %d \n",len,rec->header.offset/PAGE_SIZE,rec->header.offset % PAGE_SIZE);
+    struct page* page=virt_to_page(blocks_array[rec->header.offset/PAGE_SIZE]);
+    lock_page(page);
     memcpy(blocks_array[rec->header.offset/PAGE_SIZE]+(rec->header.offset % PAGE_SIZE),rec->data,len);
+    unlock_page(page);
     return 42;
 }
