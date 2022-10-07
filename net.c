@@ -98,7 +98,7 @@ int sendpacket (unsigned int offset,unsigned int length)
     eth->header.offset=offset;
     eth->header.crc=crc32(0,eth->data,length);    
     eth->header.size=length;    
-    LOG("crc %x len %d",eth->header.crc,length);
+    //LOG("crc %x len %d",eth->header.crc,length);
 
     dev_hard_header(skbt,dev_eth,ETH_P_802_3,dest,dev_eth->dev_addr,PROT_NUMBER);
     skbt->protocol = PROT_NUMBER;
@@ -161,6 +161,7 @@ static int hook_func( struct sk_buff *skb,
 					 struct net_device *out)
 {
         struct ethhdr *eth;    
+        preempt_disable();    
         
         eth= eth_hdr(skb);
         //unsigned char* data=skb->data;
@@ -171,18 +172,21 @@ static int hook_func( struct sk_buff *skb,
         { 
             struct net_rfm* data=(struct net_rfm*)(skb->data);
             
-            LOG("received data\n");
-            if (data->header.crc!=crc32(0,data->data,data->header.size))
-                LOG("CRC ERROR %x,%x len=%d\n",data->header.crc,crc32(0,data->data,data->header.size),data->header.size);
+            //LOG("received data\n");
+            if (data->header.crc==crc32(0,data->data,data->header.size))
+                receive(data,data->header.size);
+            //else  LOG("CRC ERROR %x,%x len=%d\n",data->header.crc,crc32(0,data->data,data->header.size),data->header.size);
 
             
             //if (skb->data) receive((struct net_rfm*)(skb->data));
             
-            receive(data,data->header.size);
+            
         }
         
 
     kfree_skb(skb);
+    preempt_enable();
+
     return NF_DROP;
 }
 
@@ -190,7 +194,7 @@ static int hook_func( struct sk_buff *skb,
 
 int handler_add_config (void)
 {
-        hook.type = htons(ETH_P_ALL);
+        hook.type = cpu_to_be16(PROT_NUMBER);// htons(ETH_P_ALL);
         hook.func = (void *)hook_func;
         hook.dev = dev_eth;
         dev_add_pack(&hook);

@@ -5,11 +5,12 @@
 //#include <linux/lz4.h>
 #include "mmap.h"
 #include <linux/pagemap.h>
+#include <linux/kthread.h>  // for threads
 
 extern int size;
 extern int pktsize;
 
-
+extern struct mutex mem_mutex; 
 
 
 int transmitPage(unsigned int offset)
@@ -27,28 +28,13 @@ int transmitPage(unsigned int offset)
 
 int receive(struct net_rfm* rec,size_t len)
 {
-    //int blocks=size;
-    
-    
-    /*
-    
-    size_t i,j;
-    char line[19*3];
-    memset16((uint16_t*)line,'\n\0',17*3/2);    
-    unsigned char *b=(unsigned char *)rec;
-    for ( i = 0; i < sizeof(struct ethhdr); i++)
-    {
-        sprintf(line+i*3,"%02x ",b[i]);
-    }
-    line[16*3+1]='\n';
-    line[16*3+2]=0;
-    LOG(line);
-    */
+    //mutex_lock(&mem_mutex);
 
-
+    //struct page* page;
     if (rec->header.offset<0 ||  rec->header.offset>=size)
     {
         LOG("invalid packet received:%d \n",rec->header.offset);
+
         return -1;
     }
     if (!blocks_array[rec->header.offset/PAGE_SIZE])
@@ -65,9 +51,10 @@ int receive(struct net_rfm* rec,size_t len)
     }
 
     //LOG("copy %d bytes page %d page_offset %d \n",len,rec->header.offset/PAGE_SIZE,rec->header.offset % PAGE_SIZE);
-    struct page* page=virt_to_page(blocks_array[rec->header.offset/PAGE_SIZE]);
-    lock_page(page);
+    //page=virt_to_page(blocks_array[rec->header.offset/PAGE_SIZE]);
+    //lock_page(page);
     memcpy(blocks_array[rec->header.offset/PAGE_SIZE]+(rec->header.offset % PAGE_SIZE),rec->data,len);
-    unlock_page(page);
+    //mutex_unlock(&mem_mutex);
+    //unlock_page(page);
     return 42;
 }

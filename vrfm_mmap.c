@@ -41,6 +41,7 @@ struct mmap_info *info = NULL;
 
 static struct task_struct *thread1;
 struct mutex etx_mutex; 
+struct mutex mem_mutex; 
 
 
 
@@ -161,6 +162,9 @@ int mmap_open(struct inode *inode, struct file *filp)
 	filp->private_data = info;    
 	info->reference++;
 	LOG("mmap_open1 %d\n",info->reference);
+
+
+
 	thread1 = kthread_create(fb_deferred_io_work,NULL,"thread");
     if((thread1))
         {
@@ -232,7 +236,7 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	if (!info->data[block])
 	{
 		LOG("allocate page flags:%x chunk:%d \n",vmf->flags,block);
-		info->data[block]=(char *)__get_free_pages(GFP_KERNEL, PAGES_ORDER);
+		info->data[block]=(char *)__get_free_pages(GFP_KERNEL|GFP_ATOMIC, PAGES_ORDER);
 		//info->data[block]=(char *)__get_free_pages(GFP_KERNEL| GFP_DMA | __GFP_NOWARN |__GFP_NORETRY, PAGES_ORDER);
 		memset(info->data[block],0,PAGE_SIZE<<PAGES_ORDER);
 	}
@@ -275,6 +279,7 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 
 int page_mkclean(struct page *page);
 
+
 static int fb_deferred_io_work(void* data)
 {
 	struct page* page;
@@ -283,10 +288,9 @@ static int fb_deferred_io_work(void* data)
 
 	while (info->reference)
 	{
-		LOG("???????????????????????????????????????????????????wakeup\n");
 		mutex_lock(&etx_mutex);
+		mutex_lock(&mem_mutex);
 		
-		LOG("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!wakeup\n");
 		for ( index = dirt_pages; *index>=0  ; index++)
 		{
 			
@@ -304,12 +308,12 @@ static int fb_deferred_io_work(void* data)
 			if (PageDirty(page))
 			{
 				ktime_t time1;
-				LOG("dirty %d\n",*index);
+				//LOG("dirty %d\n",*index);
 				time1=ktime_get();
 				
 				transmitPage(*index);
 				
-				LOG("time %lld\n",ktime_get()-time1);
+				//LOG("time %lld\n",ktime_get()-time1);
 				page_mkclean(page);
 				ClearPageDirty(page);
 				
@@ -317,7 +321,7 @@ static int fb_deferred_io_work(void* data)
 					
 			unlock_page(page);
 		}
-		//mutex_unlock(&etx_mutex);
+		mutex_unlock(&mem_mutex);
 		if(kthread_should_stop()) {
 			LOG(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> terminato\n");
 			do_exit(0);
@@ -544,6 +548,7 @@ int mmap_ops_init(void)
 	//info->delay=0;
 
  	//INIT_DELAYED_WORK(&info->deferred_work, fb_deferred_io_work);
+	mutex_init(&mem_mutex);	
 
 	mutex_init(&etx_mutex);	
 	mutex_lock(&etx_mutex);
