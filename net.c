@@ -115,7 +115,7 @@ int sendpacket (unsigned int offset,unsigned int length)
 
     skbt->dev=dev_eth;
     eth->header.offset=offset;
-    eth->header.crc=crc32(0,eth->data,length);    
+    eth->header.crc=0;    
     eth->header.size=length;    
     eth->header.cmd=length?VRFM_MEM_SEND:VRFM_DUMP_ALL;
     eth->header.seq=sequence++;
@@ -136,7 +136,7 @@ int sendpacket (unsigned int offset,unsigned int length)
         }
         else
             memcpy(eth->data, &blocks_array[block][offsetinpage],length);
-
+        eth->header.crc=crc32(0,eth->data,length);    
 
     }
 
