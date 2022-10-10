@@ -339,6 +339,7 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
 
             for(;block<=((rfm2gTransfer.Offset+rfm2gTransfer.Length-1)/PAGE_SIZE);block++)
             {
+                size_t i;
                 char* thisblock=info->data[block];
                 //size_t end=start+len;
                 size_t startInThisBlock=start % PAGE_SIZE;
@@ -353,7 +354,18 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
                     LOG(KERN_ERR": Exiting %s: unallocated block %d \n",me,block );
                     return( -EFAULT );
                 }
+                for (i = 0; i < rfm2gTransfer.Length; i++)
+                {
+                    LOG("%x ",((char*)(rfm2gTransfer.Buffer))[i]);
+                }
+                LOG("\n");
+                LOG("thisblock=%d[%d] len=%d\n",block,startInThisBlock,len2endofpage);
                 memcpy(&thisblock[startInThisBlock],((char*)rfm2gTransfer.Buffer)+startOfInput,len2endofpage);
+                for (i = 0; i < rfm2gTransfer.Length; i++)
+                {
+                    LOG("%x ",((char*)(rfm2gTransfer.Buffer))[i]);
+                }
+
                 start=(block+1)*PAGE_SIZE; // beginning of next page
                 len-=len2endofpage;
                 startOfInput+=len2endofpage;
