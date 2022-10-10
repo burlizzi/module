@@ -319,6 +319,7 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
             size_t start;
             int len;
             int block;
+            size_t startOfInput=0;
             struct mmap_info *info = filp->private_data;
 
             if( copy_from_user( (void *)&rfm2gTransfer, (void *)arg,
@@ -352,9 +353,10 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
                     LOG(KERN_ERR": Exiting %s: unallocated block %d \n",me,block );
                     return( -EFAULT );
                 }
-                memcpy(&thisblock[startInThisBlock],((char*)rfm2gTransfer.Buffer)+startInThisBlock,len2endofpage);
-                start=(block+1)*PAGE_SIZE;
+                memcpy(&thisblock[startInThisBlock],((char*)rfm2gTransfer.Buffer)+startOfInput,len2endofpage);
+                start=(block+1)*PAGE_SIZE; // beginning of next page
                 len-=len2endofpage;
+                startOfInput+=len2endofpage;
             }
 
             start=rfm2gTransfer.Offset;
