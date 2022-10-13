@@ -163,4 +163,3 @@ typedef struct rfm2gAtomic  /* Used for peeking and poking */
 
 #define  RFMOR_LAS1RR_RANGE_2M      0xFFE00000
 
-#define PROT_NUMBER 0x612

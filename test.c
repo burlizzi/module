@@ -62,7 +62,7 @@ int main (int argc, char **argv)
     fflush(log);
     struct timespec time1, time2;
     int temp;
-    
+    address[1]++;
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &time1);
     while(1)
     {

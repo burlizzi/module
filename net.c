@@ -182,7 +182,7 @@ int sendpacket (unsigned int offset,unsigned int length)
     eth->header.cmd=length?VRFM_MEM_SEND:VRFM_DUMP_ALL;
     eth->header.seq=sequence++;
 
-//    LOG("sendpacket %u %u %u %u |%s\n",offset,length,offset %PAGE_SIZE,(offset %PAGE_SIZE) + length,&blocks_array[block][offsetinpage]);
+//    LOG("sendpacket p=%x o=%u l=%u %u %u |%s\n",skbt->protocol,offset,length,offset %PAGE_SIZE,(offset %PAGE_SIZE) + length,&blocks_array[block][offsetinpage]);
     if(length)
     {
         if( unlikely(offsetinpage+length>PAGE_SIZE))//we crossed the boundaries
@@ -192,13 +192,14 @@ int sendpacket (unsigned int offset,unsigned int length)
                 LOG("vrfm: blocks_array+1=%d not allocated!!\n",block+1);
                 return -1;
             }
-            LOG("caso 1\n");
+            //LOG("caso 1\n");
 
             memcpy(eth->data,                        &blocks_array[block][offsetinpage],PAGE_SIZE-offsetinpage);
             memcpy(eth->data+PAGE_SIZE-offsetinpage, &blocks_array[block+1][0],         length+offsetinpage-PAGE_SIZE);
         }
         else
         {
+/*
             int i;
             char* buffer=&blocks_array[block][offsetinpage];
             for ( i = 0; i < length; i++)
@@ -207,6 +208,7 @@ int sendpacket (unsigned int offset,unsigned int length)
             }
             
             LOG("caso 2 len=%d\n",length);
+*/
             memcpy(eth->data, &blocks_array[block][offsetinpage],length);
 
         }
