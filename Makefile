@@ -1,6 +1,7 @@
 
 MODULE_NAME ?= vrfm
 MAP_SIZE ?= 67108864
+CC=/usr/bin/cc
 
 BUILD_DIR = /lib/modules/$(shell uname -r)/build
 PWD = $(shell pwd)
@@ -22,13 +23,13 @@ sync:
 
 
 bin/test: test.c
-	cc -g test.c -o "bin/test"
+	${CC} -g test.c -o "bin/test"
 
 obj-m += $(MODULE_NAME).o 
  $(MODULE_NAME)-y += chdev.o main.o  vrfm_mmap.o net.o protocol.o
 
 module: $(BUILD_DIR_MAKEFILE) 
-	KCPPFLAGS=" -DMODULE_NAME=$(MODULE_NAME) -DMAP_SIZE=$(MAP_SIZE) $(FLAGS)"  	make -C $(BUILD_DIR) M=$(MOD_OUTPUT_DIR) src=$(PWD)   modules
+	KCPPFLAGS=" -DMODULE_NAME=$(MODULE_NAME) -DMAP_SIZE=$(MAP_SIZE) $(FLAGS)"  	make -C $(BUILD_DIR) M=$(MOD_OUTPUT_DIR) src=$(PWD) CC=/usr/bin/cc  modules
 
 $(BUILD_DIR):
 	$(warning kernel header source not found, install with )
@@ -56,7 +57,7 @@ clean:
 
 
 install: all
-	KCPPFLAGS=" -DMODULE_NAME=$(MODULE_NAME) -DMAP_SIZE=$(MAP_SIZE)" make -C $(BUILD_DIR)   M=$(MOD_OUTPUT_DIR) src=$(PWD)  modules
+	KCPPFLAGS=" -DMODULE_NAME=$(MODULE_NAME) -DMAP_SIZE=$(MAP_SIZE)" make -C $(BUILD_DIR)   M=$(MOD_OUTPUT_DIR) src=$(PWD) CC=/usr/bin/cc modules
 	@sudo insmod $(MOD_OUTPUT_DIR)/$(MODULE_NAME).ko 
 
 uninstall:
