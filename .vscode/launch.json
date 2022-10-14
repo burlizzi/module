@@ -17,7 +17,25 @@
             "MIMode": "gdb",
             "miDebuggerServerAddress": "localhost:8864"
         },
-       
+       {
+        "name": "(gdb) Associa",
+        "type": "cppdbg",
+        "request": "attach",
+        "program": "${workspaceFolder}/bin/test",
+        "MIMode": "gdb",
+        "setupCommands": [
+            {
+                "description": "Abilita la riformattazione per gdb",
+                "text": "-enable-pretty-printing",
+                "ignoreFailures": true
+            },
+            {
+                "description":  "Imposta Versione Disassembly su Intel",
+                "text": "-gdb-set disassembly-flavor intel",
+                "ignoreFailures": true
+            }
+        ]
+       },
        {
            "name": "(gdb) Launch",
            "type": "cppdbg",

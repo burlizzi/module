@@ -152,6 +152,38 @@ typedef struct rfm2gAtomic  /* Used for peeking and poking */
 } RFM2GATOMIC;
 
 
+/* Interrupt Events */
+
+typedef enum rfm2gEventType
+{
+   RFM2GEVENT_RESET,       /* Reset Interrupt                                */
+   RFM2GEVENT_INTR1,       /* Network Interrupt 1                            */
+   RFM2GEVENT_INTR2,       /* Network Interrupt 2                            */
+   RFM2GEVENT_INTR3,       /* Network Interrupt 3                            */
+   RFM2GEVENT_INTR4,       /* Network Interrupt 4 (Init interrupt)           */
+   RFM2GEVENT_BAD_DATA,    /* Bad Data                                       */
+   RFM2GEVENT_RXFIFO_FULL, /* RX FIFO has been full one or more times.       */
+   RFM2GEVENT_ROGUE_PKT,   /* the board detected and removed a rogue packet. */
+   RFM2GEVENT_RXFIFO_AFULL,/* RX FIFO has been almost full one or more times.*/
+   RFM2GEVENT_SYNC_LOSS,   /* Sync loss has occured one of more times.       */
+   RFM2GEVENT_MEM_WRITE_INHIBITED, /* Write to local memory was attempted and inhibited */
+   RFM2GEVENT_LOCAL_MEM_PARITY_ERR, /* Parity errors have been detected on local memory accesses */
+   RFM2GEVENT_LAST         /* Number of Events                               */
+}  RFM2GEVENTTYPE;
+
+
+typedef struct rfm2gEventInfo
+{
+    RFM2G_UINT32   ExtendedInfo; /* Data passed with event                  */
+    RFM2GEVENTTYPE Event;        /* Event type union                        */
+    RFM2G_UINT32   Timeout;      /* timeout value to wait for event mSec    */
+    RFM2G_NODE     NodeId;       /* Source Node                             */
+    void *         pDrvSpec;     /* Driver specific                         */
+} RFM2GEVENTINFO;
+
+
+
+#define IOCTL_RFM2G_WAIT_FOR_EVENT    _IOWR(RFM2G_MAGIC, 23, RFM2GEVENTINFO)
 #define IOCTL_RFM2G_GET_CONFIG               _IOWR(RFM2G_MAGIC, 30, struct RFM2GCONFIG_)
 #define IOCTL_RFM2G_READ              _IOW(RFM2G_MAGIC,  73, RFM2G_ADDR)
 #define IOCTL_RFM2G_WRITE             _IOW(RFM2G_MAGIC,  74, RFM2G_ADDR)

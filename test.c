@@ -32,7 +32,7 @@ int main (int argc, char **argv)
 
 
     int configfd;
-    char *address = NULL;
+    volatile char *address = NULL;
     int i;
     
 
@@ -57,22 +57,32 @@ int main (int argc, char **argv)
     //memcpy (address + 11, "*user*", 6);
     //printf ("Initial message: %s\n", address);
     //sleep(1);
-
-    fprintf (log,"0\n");
-    fflush(log);
-    struct timespec time1, time2;
+    
+    struct timespec time1, time2,time3;
     int temp;
-    address[1]++;
-    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &time1);
+    //address[1]++;
+    clock_gettime(CLOCK_MONOTONIC, &time1);
+    char xx=0;
     while(1)
     {
-        if(address[1]==address[2])
+     //   
+        //if (xx!=address[2])        printf ("%x,%x\n",address[1],address[2]);  
+        //xx=address[2];
+        clock_gettime(CLOCK_MONOTONIC, &time3);
+        if(address[1]==address[2] || diff(time1,time3).tv_sec>0)
         {
-            clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &time2);
-            printf ("ping round: %d ms\n", diff(time1,time2).tv_nsec/1000000);
-            clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &time1);
+            clock_gettime(CLOCK_MONOTONIC, &time2);
+            fprintf (log,"ping round: %f ms\n", (float)(diff(time1,time2).tv_nsec)/1000000+(float)(diff(time1,time2).tv_sec)*1000);
+            fflush(log);
+            usleep(10000);
+            clock_gettime(CLOCK_MONOTONIC, &time1);
+            //fprintf (log,"x\n");  
+            fflush(log);
             address[1]++;
+            //fprintf (log,"y\n");  
+            fflush(log);
         }
+        usleep(10);
 
     }
     return 0;

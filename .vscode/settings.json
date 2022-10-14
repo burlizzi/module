@@ -6,7 +6,9 @@
         "netdevice.h": "c",
         "pgtable.h": "c",
         "pgtable_types.h": "c",
-        "mmap.h": "c"
+        "mmap.h": "c",
+        "param.h": "c",
+        "page-flags-layout.h": "c"
     },
     "C_Cpp.errorSquiggles": "Disabled"
 }

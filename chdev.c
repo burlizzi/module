@@ -524,6 +524,8 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
         }
         return( 0 );
         break;
+        case IOCTL_RFM2G_WAIT_FOR_EVENT:
+        return( -ETIMEDOUT );
     }
 
     return( -EFAULT );
