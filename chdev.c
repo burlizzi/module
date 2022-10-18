@@ -525,7 +525,35 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
         return( 0 );
         break;
         case IOCTL_RFM2G_WAIT_FOR_EVENT:
-        return( -ETIMEDOUT );
+        {
+            RFM2GEVENTINFO info;
+            if( copy_from_user( (void *)&info, (void *)arg,
+                sizeof(RFM2GEVENTINFO) ) > 0 )
+            {
+                //WHENDEBUG(RFM2G_DBERROR)
+                {
+                    LOG(KERN_ERR": Exiting %s: copy_from_user() failed\n", me );
+                }
+                return( -EFAULT );
+            }
+            LOG("waiting for %u\n",info.Timeout);
+            switch (info.Timeout)
+            {
+            case RFM2G_NO_WAIT:
+                break;
+            
+            case RFM2G_INFINITE_TIMEOUT:
+                schedule();
+                break;
+            default:
+                info.Timeout = schedule_timeout( info.Timeout );
+                break;
+            } 
+            LOG("enough waiting %d\n",info.Timeout);
+
+        }
+        
+        return( 0 );
     }
 
     return( -EFAULT );

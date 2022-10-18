@@ -181,6 +181,8 @@ typedef struct rfm2gEventInfo
     void *         pDrvSpec;     /* Driver specific                         */
 } RFM2GEVENTINFO;
 
+#define RFM2G_INFINITE_TIMEOUT (unsigned int) 0xFFFFFFFF
+#define RFM2G_NO_WAIT (unsigned int) 0x0
 
 
 #define IOCTL_RFM2G_WAIT_FOR_EVENT    _IOWR(RFM2G_MAGIC, 23, RFM2GEVENTINFO)
