@@ -17,8 +17,8 @@ enum vrfm_packet_type
 
 struct rfm_header
 {
-    u_int8_t version:4;
-    enum vrfm_packet_type cmd:4;
+    u_int8_t version;
+    enum vrfm_packet_type cmd:8;
     u_int32_t offset;
     u_int16_t size;
     u_int32_t crc;
