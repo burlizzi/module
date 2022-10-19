@@ -41,7 +41,7 @@
            "type": "cppdbg",
            "request": "launch",
            "program": "${workspaceFolder}/bin/test",
-           "args": ["/dev/rfm2g0"],
+           "args": ["-s"],
 //           "args": ["/proc/lkmc_mmap"],
            "stopAtEntry": false,
            "cwd": "${workspaceFolder}",

@@ -60,9 +60,19 @@ int main (int argc, char **argv)
     
     struct timespec time1, time2,time3;
     int temp;
-    //address[1]++;
     clock_gettime(CLOCK_MONOTONIC, &time1);
     char xx=0;
+    if (argc==2 && strcmp(argv[1],"-s")==0)
+    {
+        while(1)
+        {
+            if(address[1]!=address[2])
+                address[2]=address[1];
+        }
+    }
+
+
+    address[1]++;
     while(1)
     {
      //   
@@ -72,17 +82,21 @@ int main (int argc, char **argv)
         if(address[1]==address[2] || diff(time1,time3).tv_sec>0)
         {
             clock_gettime(CLOCK_MONOTONIC, &time2);
-            fprintf (log,"ping round: %f ms\n", (float)(diff(time1,time2).tv_nsec)/1000000+(float)(diff(time1,time2).tv_sec)*1000);
+            if (address[1]==address[2])
+                fprintf (log,"ping round: %f ms\n", (float)(diff(time1,time2).tv_nsec)/1000000+(float)(diff(time1,time2).tv_sec)*1000);
+            else
+                fprintf (log,"ping failed: %f ms\n", (float)(diff(time1,time2).tv_nsec)/1000000+(float)(diff(time1,time2).tv_sec)*1000);
             fflush(log);
             usleep(10000);
-            clock_gettime(CLOCK_MONOTONIC, &time1);
+            
             //fprintf (log,"x\n");  
             fflush(log);
-            address[1]++;
             //fprintf (log,"y\n");  
             fflush(log);
+            address[1]++;
+            clock_gettime(CLOCK_MONOTONIC, &time1);
         }
-        usleep(10);
+        //usleep(10);
 
     }
     return 0;

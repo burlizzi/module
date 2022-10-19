@@ -176,6 +176,7 @@ int sendpacket (unsigned int offset,unsigned int length)
 
 
     skbt->dev=dev_eth;
+    eth->header.version =1;
     eth->header.offset=offset;
     eth->header.crc=0;    
     eth->header.size=length;    

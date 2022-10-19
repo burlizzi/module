@@ -14,7 +14,7 @@
 MODULE_DESCRIPTION("Virtual Reflective Memory Linux driver");
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Luca Burlizzi");
-//MODULE_SOFTDEP("e1000e");
+MODULE_SOFTDEP("e1000e");
 
 
 RFM2G_INT32
