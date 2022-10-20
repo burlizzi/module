@@ -46,7 +46,7 @@ RFM2gReadProcPage( char *buf, char **start, off_t offset, int len, int *unused,
     if( bytesRead > PAGE_SIZE-80 ) return( bytesRead ); /* This is enough! */
 
     bytesRead += sprintf( buf+bytesRead, "RFM2G_DEVICE_COUNT         %d\n\n",
-        1 );
+        countinstances );
     if( bytesRead > PAGE_SIZE-80 ) return( bytesRead ); /* This is enough! */
 
     /* Show the contents of the RFM2GDEVICEINFO structures 
@@ -166,19 +166,17 @@ struct file_operations rfm2gFOS =
 };
 
 #endif
-
 static int vrfm_driver_init(void)
 {
   printk( KERN_NOTICE "vrfm: Starting\n" );
   proc_create("rfm2g",0666,NULL,&rfm2gFOS);
 
-   if (net_init())
+  if (net_init())
         return -1;
-   if (mmap_ops_init())
+  if (mmap_ops_init())
         return -1;
-   if (chdev_init())
+  if (chdev_init())
         return -1;
-
   return 0;
 }
 

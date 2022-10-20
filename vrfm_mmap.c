@@ -159,6 +159,7 @@ int mmap_open(struct inode *inode, struct file *filp)
 	}*/
 
 	//info->inode=inode;
+	//info->name=filp->f_path;
 	filp->private_data = info;    
 	info->reference++;
 	LOG("mmap_open1 %d\n",info->reference);

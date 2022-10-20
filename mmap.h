@@ -8,6 +8,7 @@
 
 struct mmap_info {
 	//struct delayed_work deferred_work;
+	char * name;
 	char **data;
 	int reference;
 	struct file *lower_file;

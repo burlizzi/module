@@ -22,18 +22,15 @@ const int unit = 0;
 
 
 
-struct class *cl;
-struct cdev cdev;
-dev_t dev=0;
+#ifndef MAX_RFM2G_DEVICES
+  #define MAX_RFM2G_DEVICES  5
+#endif
 
 
-
-int majorNum;
-dev_t devNo;  // Major and Minor device numbers combined into 32 bits
-struct class *pClass;  // class_create will set this
+struct class* classesArray[MAX_RFM2G_DEVICES];  // class_create will set this
 
 
-static char *rfmdevice = "rfm2g0";
+char *rfmdevice = "rfm2g0";
 module_param(rfmdevice, charp,S_IRUGO);
 MODULE_PARM_DESC(rfmdevice, "RFM device to create default=rfm2g0");
 
@@ -88,7 +85,8 @@ ssize_t device_file_read(
                 {
                     //LOG( KERN_NOTICE "vrfm: block=%d, offset = %u size=%ld\n",block,offsetinpage,PAGE_SIZE-offsetinpage);
                     
-                    copy_to_user(user_buffer, &info->data[block][offsetinpage],PAGE_SIZE-offsetinpage);
+                    if(copy_to_user(user_buffer, &info->data[block][offsetinpage],PAGE_SIZE-offsetinpage))
+                        LOG( KERN_NOTICE "vrfm: block=%d, offset = %u size=%ld\n",block,offsetinpage,PAGE_SIZE-offsetinpage);
                 }
                 else
                 {
@@ -99,7 +97,8 @@ ssize_t device_file_read(
                 if (info->data[block+1])
                 {
                     //LOG( KERN_NOTICE "vrfm: block1=%d, offset = %u size=%ld\n",block+1,0,count+offsetinpage-PAGE_SIZE);
-                    copy_to_user(user_buffer+PAGE_SIZE-offsetinpage, &info->data[block+1][0],count+offsetinpage-PAGE_SIZE);
+                    if(copy_to_user(user_buffer+PAGE_SIZE-offsetinpage, &info->data[block+1][0],count+offsetinpage-PAGE_SIZE))
+                        LOG( KERN_NOTICE "vrfm: block1=%d, offset = %u size=%ld\n",block+1,0,count+offsetinpage-PAGE_SIZE);
                 }
                 //else memset(user_buffer+PAGE_SIZE-offsetinpage,0,count+offsetinpage-PAGE_SIZE);
 
@@ -111,7 +110,8 @@ ssize_t device_file_read(
                 if (info->data[block])
                 {
                     //LOG( KERN_NOTICE "vrfm: block=%d, offset = %u size=%ld\n",block,offsetinpage,count);
-                    copy_to_user(user_buffer, &info->data[block][offsetinpage],count);
+                    if(copy_to_user(user_buffer, &info->data[block][offsetinpage],count))
+                        LOG( KERN_NOTICE "vrfm: block=%d, offset = %u size=%ld\n",block,offsetinpage,count);
                 }
                 //else memset(user_buffer,0,count);
                 //
@@ -198,7 +198,7 @@ void allocatedata(struct mmap_info * info, size_t offset, size_t length)
 long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
 {
         static char *me = "rfm2g_ioctl()";
-    
+    struct mmap_info *info = filp->private_data;
     	/* Valid Call? */
 
 	if (_IOC_TYPE(cmd) != RFM2G_MAGIC)
@@ -226,7 +226,7 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
     	    //RFM2G_ADDR rfm2gAddr;  /* RFM address to read data              */
             //RFM2G_ADDR base;     /* Base address of RFM I/O or memory space */
             RFM2G_UINT32 maxsize;  /* Max size of RFM I/O or memory space     */
-            struct mmap_info *info = filp->private_data;
+            
             int offsetinpage;
             int block;
             char* dest;
@@ -496,7 +496,7 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
 			Config.Unit                = 1;
 			Config.PlxRevision         = 1;
 			Config.MemorySize          = 64*1024*1024;
-			strcpy(Config.Device, rfmdevice);
+			d_path (&filp->f_path,Config.Device,sizeof(Config.Device));
 			strcpy(Config.Name, RFM2G_PRODUCT_STRING);
 			strcpy(Config.DriverVersion, RFM2G_PRODUCT_VERSION);
 			Config.BoardRevision       = 0x8d;
@@ -574,42 +574,95 @@ static struct file_operations vrfm_driver_fops =
 int chdev_init(void)
 {
     
-   struct device *pDev;
+driver/driver_init.c
+
+   rfm2g_devfs_dir = devfs_mk_dir(NULL, devname, NULL);
+    if (!rfm2g_devfs_dir)
+        return -EBUSY; /* problem */
+
+    for( i=0; i<rfm2g_device_count; i++ )
+    {
+        char mindevname[8];
+        sprintf (mindevname, "%i", i);
+        rfm2gDeviceInfo[i].handle = devfs_register( rfm2g_devfs_dir, mindevname,
+                    0,//Flags, was DEVFS_FL_AUTO_DEVNUM
+                    major_num, i, S_IFCHR | S_IRUGO | S_IWUGO,
+                    &rfm2g_fops,
+                    &rfm2gDeviceInfo[i]);
+    }
+
+
+driver/driver_init.c
+
+
+    struct device *pDev;
+    char* device=NULL;
+    char save[128];
+    char* point;
+    int i=0;
+    struct class* pClass=classesArray[0];
+
+    // Create /dev/DEVICE_NAME for this char dev
+    printk("a %s\n",rfmdevice);
+    strcpy(save,rfmdevice);
+    printk("b %s \n",save);
+    point=&save[0];
     
-  // Register character device
-  majorNum = register_chrdev(0, xstr(MODULE_NAME), &vrfm_driver_fops);
-  if (majorNum < 0) {
-    LOG(KERN_ALERT "Could not register device: %d\n", majorNum);
-    return majorNum;
-  }
-  devNo = MKDEV(majorNum, 0);  // Create a dev_t, 32 bit version of numbers
+    while ((device = strsep(&point, ","))) 
+    {
+        pClass=classesArray[i++];
+        // Register character device
+        majorNum = register_chrdev(0, device, &vrfm_driver_fops);
+        if (majorNum < 0) {
+            LOG(KERN_ALERT "Could not register device: %d\n", majorNum);
+            return majorNum;
+        }
+        devNo = MKDEV(majorNum, 0);  // Create a dev_t, 32 bit version of numbers
 
-  // Create /sys/class/DEVICE_NAME in preparation of creating /dev/DEVICE_NAME
-  pClass = class_create(THIS_MODULE, rfmdevice);
+        // Create /sys/class/DEVICE_NAME in preparation of creating /dev/DEVICE_NAME
+        pClass = class_create(THIS_MODULE, device);
 
-  pClass->devnode = vrfm_devnode;
+        pClass->devnode = vrfm_devnode;
 
 
-  if (IS_ERR(pClass)) {
-    LOG(KERN_WARNING "\ncan't create class");
-    unregister_chrdev_region(devNo, 1);
-    return -1;
-  }
+        if (IS_ERR(pClass)) {
+        LOG(KERN_WARNING "\ncan't create class");
+        unregister_chrdev_region(devNo, 1);
+        return -1;
+        }
 
-  // Create /dev/DEVICE_NAME for this char dev
-  if (IS_ERR(pDev = device_create(pClass, NULL, devNo, NULL, rfmdevice))) {
-    LOG(KERN_WARNING xstr(MODULE_NAME)".ko can't create device /dev/%s\n",rfmdevice);
-    class_destroy(pClass);
-    unregister_chrdev_region(devNo, 1);
-    return -1;
-  }
-  printk("VRFM device created on /dev/%s\n",rfmdevice);
-  return 0;
+        printk("c %s\n",device);
+        if (IS_ERR(pDev = device_create(pClass, NULL, devNo, NULL, device))) {
+            LOG(KERN_WARNING xstr(MODULE_NAME)".ko can't create device /dev/%s\n",device);
+            class_destroy(pClass);
+            unregister_chrdev_region(devNo, 1);
+            return -1;
+        }
+        printk("VRFM device created on /dev/%s\n",device);
+        classesArray[i++]=pClass;
+        
+    }
+    printk("d\n");
+
+    return 0;
 }
 
 void chdev_shutdown(void)
 {
+   char* device=NULL;
+   int i=0;
+   struct class* pClass=classesArray[0];
+   while ((device = strsep(&rfmdevice, ","))) 
+   {
+    pClass=classesArray[i++];
     device_destroy(pClass, devNo);  // Remove the /dev/DEVICE_NAME
     class_destroy(pClass);  // Remove class /sys/class/DEVICE_NAME
-    unregister_chrdev(majorNum, rfmdevice);  // Unregister the device    
+    unregister_chrdev(majorNum, device);  // Unregister the device    
+    printk("VRFM device deleted on /dev/%s\n",device);
+    pClass++;
+   }
 }
+
+
+
+    
