@@ -87,21 +87,21 @@ ssize_t device_file_read(
                 if (info->data[block])
                 {
                     //LOG( KERN_NOTICE "vrfm: block=%d, offset = %u size=%ld\n",block,offsetinpage,PAGE_SIZE-offsetinpage);
-                    memcpy(user_buffer, &info->data[block][offsetinpage],PAGE_SIZE-offsetinpage);
+                    
+                    copy_to_user(user_buffer, &info->data[block][offsetinpage],PAGE_SIZE-offsetinpage);
                 }
                 else
                 {
-                    memset(user_buffer,0,PAGE_SIZE-offsetinpage);
+                    //memset(user_buffer,0,PAGE_SIZE-offsetinpage);
                 }
                     
 
                 if (info->data[block+1])
                 {
                     //LOG( KERN_NOTICE "vrfm: block1=%d, offset = %u size=%ld\n",block+1,0,count+offsetinpage-PAGE_SIZE);
-                    memcpy(user_buffer+PAGE_SIZE-offsetinpage, &info->data[block+1][0],count+offsetinpage-PAGE_SIZE);
+                    copy_to_user(user_buffer+PAGE_SIZE-offsetinpage, &info->data[block+1][0],count+offsetinpage-PAGE_SIZE);
                 }
-                else
-                    memset(user_buffer+PAGE_SIZE-offsetinpage,0,count+offsetinpage-PAGE_SIZE);
+                //else memset(user_buffer+PAGE_SIZE-offsetinpage,0,count+offsetinpage-PAGE_SIZE);
 
                 
 
@@ -111,10 +111,9 @@ ssize_t device_file_read(
                 if (info->data[block])
                 {
                     //LOG( KERN_NOTICE "vrfm: block=%d, offset = %u size=%ld\n",block,offsetinpage,count);
-                    memcpy(user_buffer, &info->data[block][offsetinpage],count);
+                    copy_to_user(user_buffer, &info->data[block][offsetinpage],count);
                 }
-                else
-                    memset(user_buffer,0,count);
+                //else memset(user_buffer,0,count);
                 //
             }
                 
@@ -149,8 +148,7 @@ ssize_t complete_write(struct file *filp,const char __user *buf,size_t count,lof
 
     //LOG( KERN_NOTICE "vrfm: received %s\n" , procfs_buffer);
     while ((retval=sendpacket((*pos),count))==1)
-                    //udelay(1)
-                    ;
+                    schedule();
     if (retval==-1)
         return 0;
     return count;

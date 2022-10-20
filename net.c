@@ -98,6 +98,7 @@ retry:
         break;
         case NET_XMIT_DROP:
         LOG("vrfm: tx dropped packet, retry!!\n");
+        schedule();
         usleep_range(100,1000);
         return 1;
 #if LINUX_VERSION_CODE > KERNEL_VERSION(5,2,0)
