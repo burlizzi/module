@@ -12,6 +12,11 @@ extern bool debug;
 #include "rfm2g_types.h"
 
 
+#ifndef MAX_RFM2G_DEVICES
+  #define MAX_RFM2G_DEVICES  5
+#endif
+
+
 #define RFM2G_PRODUCT_STRING    "AB-RFM2G-DRV-LNX"
 #define RFM2G_PRODUCT_OS        "LINUX"
 #define RFM2G_PRODUCT_VERSION   "R01.00"

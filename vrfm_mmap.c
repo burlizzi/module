@@ -37,12 +37,14 @@
 #include <linux/kthread.h>  // for threads
 
 //static DEFINE_MUTEX(mmap_device_mutex);
-struct mmap_info *info = NULL;
+//struct mmap_info *info = NULL;
 
 static struct task_struct *thread1;
 struct mutex etx_mutex; 
 struct mutex mem_mutex; 
-
+extern int rfm_instances;
+extern char* devices[MAX_RFM2G_DEVICES];  // Major and Minor device numbers combined into 32 bits
+extern struct mmap_info* infos[MAX_RFM2G_DEVICES];
 
 
 int size = MAP_SIZE; // default
@@ -56,7 +58,7 @@ module_param(debug, bool,S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 
 int blocks=MAP_SIZE/PAGE_SIZE/PAGES_PER_BLOCK;
 
-char** blocks_array=NULL;
+//char** blocks_array=NULL;
 short* dirt_pages;
 //short* current_dirt;
 
@@ -135,7 +137,7 @@ static int fb_deferred_io_set_page_dirty(struct page *page)
 }
 
 
-static int fb_deferred_io_work(void* data);
+static int fb_deferred_io_work(struct mmap_info* info);
 
 
 static const struct address_space_operations fb_deferred_io_aops = {
@@ -145,13 +147,29 @@ static const struct address_space_operations fb_deferred_io_aops = {
 
 int mmap_open(struct inode *inode, struct file *filp)
 {
+	size_t i;
+	struct mmap_info* info=NULL;
+	for (i = 0; i < rfm_instances; i++)
+	{
+		LOG("checking %s / %s\n",devices[i],filp->f_path.dentry->d_iname);
+		if (strstr(devices[i],filp->f_path.dentry->d_iname))
+		{
+			info=infos[i];
+			LOG("found info\n");
+			break;
+		}
+	}
+	if (!info)
+		return -EBUSY;
+	
 	//inode->i_mapping->a_ops=&nfs_file_aops;
 	filp->f_mapping->a_ops = &fb_deferred_io_aops;
 #ifdef CONFIG_HAVE_IOREMAP_PROT
 	LOG("CONFIG_HAVE_IOREMAP_PROT\n");
 
 #endif
-	LOG("mmap_open\n");
+
+	LOG("mmap_open %s\n",info->name);
 	/*if (!mutex_trylock(&mmap_device_mutex)) {
 		LOG(KERN_WARNING
 		       "Another process is accessing the device\n");
@@ -159,14 +177,14 @@ int mmap_open(struct inode *inode, struct file *filp)
 	}*/
 
 	//info->inode=inode;
-	//info->name=filp->f_path;
+	
 	filp->private_data = info;    
 	info->reference++;
 	LOG("mmap_open1 %d\n",info->reference);
 
 
 
-	thread1 = kthread_create(fb_deferred_io_work,NULL,"thread");
+	thread1 = kthread_create(fb_deferred_io_work,info,"thread");
     if((thread1))
         {
         LOG(KERN_INFO "in if");
@@ -176,10 +194,7 @@ int mmap_open(struct inode *inode, struct file *filp)
     return 0;
 }
 
-void mmap_open1(struct vm_area_struct *vma)
-{
 
-}
 
 
 
@@ -187,10 +202,11 @@ void mmap_close(struct vm_area_struct *vma)
 {
 	struct page* page;
 	short *index;
-	LOG("mmap_close %d\n",info->reference);
+	struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
+	LOG("mmap_close %d %s\n",info->reference,info->name);
 	for ( index = dirt_pages; *index>=0  ; index++)
 	{
-		page=virt_to_page(blocks_array[*index]);
+		page=virt_to_page(info->data[*index]);
 		page->mapping = NULL;
 	}
 }
@@ -285,7 +301,7 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 int page_mkclean(struct page *page);
 
 
-static int fb_deferred_io_work(void* data)
+static int fb_deferred_io_work(struct mmap_info* info)
 {
 	struct page* page;
 	short *index;
@@ -301,12 +317,12 @@ static int fb_deferred_io_work(void* data)
 			
 
 
-			page=virt_to_page(blocks_array[*index]);
+			page=virt_to_page(info->data[*index]);
 			lock_page(page);
 			//LOG("lock\n");
-			if (!blocks_array[*index])
+			if (!info->data[*index])
 			{
-				LOG("ERROR %p %d\n",blocks_array[*index],*index);
+				LOG("ERROR %p %d\n",info->data[*index],*index);
 				continue;
 			}
 
@@ -317,7 +333,7 @@ static int fb_deferred_io_work(void* data)
 				//LOG("dirty %d\n",*index);
 				time1=ktime_get();
 				
-				transmitPage(*index);
+				transmitPage(info,*index);
 				
 				//LOG("time %lld\n",ktime_get()-time1);
 				page_mkclean(page);
@@ -366,8 +382,8 @@ int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 	struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
 	lock_page(vmf->page);
 	
-	info->page=vmf->page;
-	info->x = myoff;
+	//info->page=vmf->page;
+	//info->x = myoff;
  	
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0))	
 	LOG("page_mkwrite flags:%x offset:%ld pgoff:%ld page:%p\n",vmf->flags,vmf->address-vma->vm_start,vmf->pgoff,vmf->page);
@@ -448,7 +464,7 @@ static struct mempolicy *get_policy(struct vm_area_struct *vma,
 
 #endif
 struct vm_operations_struct mmap_vm_ops = {
-	.open = mmap_open1,
+	//.open = mmap_open1,
 	.close = mmap_close,
 	.fault = mmap_fault,
 	//.map_pages = map_pages,
@@ -470,12 +486,14 @@ int mmapfop_close(struct inode *inode, struct file *filp)
 {
 	struct mmap_info *info = (struct mmap_info *)filp->private_data;
 	info->reference--;
-    LOG("mmapfop_close reference=%d\n",info->reference);
+
+	LOG("mmapfop_close %d -- %s\n",info->reference,info->name);
+
 	if (info->reference==0)
 	{
 		mutex_unlock(&etx_mutex);
 		if(!kthread_stop(thread1))
-			LOG(KERN_INFO "Thread stopped");
+			LOG(KERN_INFO "Thread stopped\n");
 
 	}
 
@@ -540,17 +558,17 @@ int mmap_ops_init(void)
 {
 	LOG("mmap_ops_init: size=%dM blocks:%d with %d pages/block\n",size/1024/1024,blocks,PAGES_PER_BLOCK);
 
-	blocks_array=kmalloc(blocks*sizeof(char*), GFP_KERNEL);
-	memset(blocks_array,0,blocks*sizeof(char*));
+	//blocks_array=kmalloc(blocks*sizeof(char*), GFP_KERNEL);
+	//memset(blocks_array,0,blocks*sizeof(char*));
 
 	dirt_pages=kmalloc(size/PAGE_SIZE*sizeof(short), GFP_KERNEL);
 	memset(dirt_pages,-1,size/PAGE_SIZE*sizeof(short));
 
-	info = kmalloc(sizeof(struct mmap_info), GFP_KERNEL);
+	//info = kmalloc(sizeof(struct mmap_info), GFP_KERNEL);
 	
 
-	info->data = blocks_array;
-	info->reference = 0;
+	//info->data = blocks_array;
+	//info->reference = 0;
 	//info->delay=0;
 
  	//INIT_DELAYED_WORK(&info->deferred_work, fb_deferred_io_work);
@@ -565,10 +583,15 @@ int mmap_ops_init(void)
 }
 void mmap_shutdown()
 {
-	size_t i;
+	size_t i,j;
 	int blocks=size/PAGE_SIZE/PAGES_PER_BLOCK;
-	for (i = 0; i < blocks; i++)
+
+	for (j = 0; j < rfm_instances; j++)
 	{
-		free_pages((unsigned long)blocks_array[i],PAGES_ORDER);	
-	}	
+		for (i = 0; i < blocks; i++)
+		{
+			free_pages((unsigned long)infos[j]->data[i],PAGES_ORDER);	
+		}	
+
+	}
 }

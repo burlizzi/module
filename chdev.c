@@ -15,20 +15,18 @@ extern int pktsize;
 
 char procfs_buffer[MAX_BUFFER];
 
-
-const char* devname = "/dev/rfm";
-
 const int unit = 0;
 
 
 
-#ifndef MAX_RFM2G_DEVICES
-  #define MAX_RFM2G_DEVICES  5
-#endif
 
 
+int majorNum[MAX_RFM2G_DEVICES];
+dev_t devNo[MAX_RFM2G_DEVICES];  // Major and Minor device numbers combined into 32 bits
+char* devices[MAX_RFM2G_DEVICES]={0};  // Major and Minor device numbers combined into 32 bits
+struct mmap_info* infos[MAX_RFM2G_DEVICES]={0};
 struct class* classesArray[MAX_RFM2G_DEVICES];  // class_create will set this
-
+int rfm_instances;
 
 char *rfmdevice = "rfm2g0";
 module_param(rfmdevice, charp,S_IRUGO);
@@ -90,7 +88,8 @@ ssize_t device_file_read(
                 }
                 else
                 {
-                    //memset(user_buffer,0,PAGE_SIZE-offsetinpage);
+                    if(clear_user(user_buffer,PAGE_SIZE-offsetinpage))
+                        LOG( KERN_NOTICE "vrfm: block=%d, offset = %u size=%ld\n",block,offsetinpage,PAGE_SIZE-offsetinpage);
                 }
                     
 
@@ -100,7 +99,11 @@ ssize_t device_file_read(
                     if(copy_to_user(user_buffer+PAGE_SIZE-offsetinpage, &info->data[block+1][0],count+offsetinpage-PAGE_SIZE))
                         LOG( KERN_NOTICE "vrfm: block1=%d, offset = %u size=%ld\n",block+1,0,count+offsetinpage-PAGE_SIZE);
                 }
-                //else memset(user_buffer+PAGE_SIZE-offsetinpage,0,count+offsetinpage-PAGE_SIZE);
+                else 
+                {
+                    if (clear_user(user_buffer+PAGE_SIZE-offsetinpage,count+offsetinpage-PAGE_SIZE))
+                        LOG( KERN_NOTICE "clear_user failed off=%d count=%ld\n",offsetinpage,count);
+                }
 
                 
 
@@ -113,7 +116,12 @@ ssize_t device_file_read(
                     if(copy_to_user(user_buffer, &info->data[block][offsetinpage],count))
                         LOG( KERN_NOTICE "vrfm: block=%d, offset = %u size=%ld\n",block,offsetinpage,count);
                 }
-                //else memset(user_buffer,0,count);
+                else
+                {
+                    if(clear_user(user_buffer,count))
+                        LOG( KERN_NOTICE "clear_user failed count=%ld\n",count);
+                } 
+
                 //
             }
                 
@@ -147,7 +155,7 @@ ssize_t complete_write(struct file *filp,const char __user *buf,size_t count,lof
     //memcpy(info->data, "Hello from kernel this is file: ", 32);
 
     //LOG( KERN_NOTICE "vrfm: received %s\n" , procfs_buffer);
-    while ((retval=sendpacket((*pos),count))==1)
+    while ((retval=sendpacket(info,(*pos),count))==1)
                     schedule();
     if (retval==-1)
         return 0;
@@ -205,8 +213,8 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
 	{
 //        WHENDEBUG(RFM2G_DBERROR)
         {
-            LOG(KERN_ERR"%s: Exiting : invalid ioctl magic num = %d expected %d\n",
-                me, _IOC_TYPE(cmd), RFM2G_MAGIC);
+            LOG(KERN_ERR"%s: Exiting : invalid ioctl magic num = %d expected %d cmd=%x\n",
+                me, _IOC_TYPE(cmd), RFM2G_MAGIC,cmd);
         }
 		return -ENOTTY;
 	}
@@ -238,7 +246,7 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
                 WHENDEBUG(RFM2G_DBERROR)
                 {
                     LOG(KERN_ERR"%s%d: Exiting %s: copy_from_user() failed\n",
-                        devname, unit, me );
+                        info->name, unit, me );
                 }
 
                 return( -EFAULT );
@@ -256,7 +264,7 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
                     WHENDEBUG(RFM2G_DBERROR)
                     {
                         LOG(KERN_ERR"%s%d: Exiting %s: Invalid data width %d\n",
-                            devname, unit, me, Data.width );
+                            info->name, unit, me, Data.width );
                     }
 
                     return( -EINVAL );
@@ -301,7 +309,7 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
                 WHENDEBUG(RFM2G_DBERROR)
                 {
                     LOG(KERN_ERR"%s%d: Exiting %s: copy_to_user() failed\n",
-                        devname, unit, me );
+                        info->name, unit, me );
                 }
 
                 return( -EFAULT );
@@ -372,7 +380,7 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
             start=rfm2gTransfer.Offset;
             for (len=rfm2gTransfer.Length;len>0;len-=CHUNK )
             {
-                while (sendpacket(start,len>CHUNK?CHUNK:len)==1);
+                while (sendpacket(info, start,len>CHUNK?CHUNK:len)==1);
                 start+=CHUNK;
             }
          return( 0 );
@@ -574,32 +582,10 @@ static struct file_operations vrfm_driver_fops =
 int chdev_init(void)
 {
     
-driver/driver_init.c
-
-   rfm2g_devfs_dir = devfs_mk_dir(NULL, devname, NULL);
-    if (!rfm2g_devfs_dir)
-        return -EBUSY; /* problem */
-
-    for( i=0; i<rfm2g_device_count; i++ )
-    {
-        char mindevname[8];
-        sprintf (mindevname, "%i", i);
-        rfm2gDeviceInfo[i].handle = devfs_register( rfm2g_devfs_dir, mindevname,
-                    0,//Flags, was DEVFS_FL_AUTO_DEVNUM
-                    major_num, i, S_IFCHR | S_IRUGO | S_IWUGO,
-                    &rfm2g_fops,
-                    &rfm2gDeviceInfo[i]);
-    }
-
-
-driver/driver_init.c
-
-
     struct device *pDev;
     char* device=NULL;
-    char save[128];
+    static char save[128];
     char* point;
-    int i=0;
     struct class* pClass=classesArray[0];
 
     // Create /dev/DEVICE_NAME for this char dev
@@ -607,17 +593,28 @@ driver/driver_init.c
     strcpy(save,rfmdevice);
     printk("b %s \n",save);
     point=&save[0];
-    
+    rfm_instances=0;
     while ((device = strsep(&point, ","))) 
     {
-        pClass=classesArray[i++];
+        struct mmap_info* info=NULL;
+        devices[rfm_instances]=device;
+        LOG("device %s\n",device);
+        infos[rfm_instances]=info=kmalloc(sizeof(struct mmap_info), GFP_KERNEL);
+       	info->data = kmalloc(blocks*sizeof(char*), GFP_KERNEL);
+	    memset(info->data,0,blocks*sizeof(char*));
+    	info->reference = 0;
+        info->index = rfm_instances;
+
+
+
+        pClass=classesArray[rfm_instances];
         // Register character device
-        majorNum = register_chrdev(0, device, &vrfm_driver_fops);
-        if (majorNum < 0) {
-            LOG(KERN_ALERT "Could not register device: %d\n", majorNum);
-            return majorNum;
+        majorNum[rfm_instances] = register_chrdev(0, device, &vrfm_driver_fops);
+        if (majorNum[rfm_instances] < 0) {
+            LOG(KERN_ALERT "Could not register device: %d\n", majorNum[rfm_instances]);
+            return majorNum[rfm_instances];
         }
-        devNo = MKDEV(majorNum, 0);  // Create a dev_t, 32 bit version of numbers
+        devNo[rfm_instances] = MKDEV(majorNum[rfm_instances], 0);  // Create a dev_t, 32 bit version of numbers
 
         // Create /sys/class/DEVICE_NAME in preparation of creating /dev/DEVICE_NAME
         pClass = class_create(THIS_MODULE, device);
@@ -626,21 +623,22 @@ driver/driver_init.c
 
 
         if (IS_ERR(pClass)) {
-        LOG(KERN_WARNING "\ncan't create class");
-        unregister_chrdev_region(devNo, 1);
-        return -1;
+            LOG(KERN_WARNING "\ncan't create class");
+            unregister_chrdev_region(devNo[rfm_instances], 1);
+            return -1;
         }
 
         printk("c %s\n",device);
-        if (IS_ERR(pDev = device_create(pClass, NULL, devNo, NULL, device))) {
+        if (IS_ERR(pDev = device_create(pClass, NULL, devNo[rfm_instances], NULL, device))) {
             LOG(KERN_WARNING xstr(MODULE_NAME)".ko can't create device /dev/%s\n",device);
             class_destroy(pClass);
-            unregister_chrdev_region(devNo, 1);
+            unregister_chrdev_region(devNo[rfm_instances], 1);
             return -1;
         }
         printk("VRFM device created on /dev/%s\n",device);
-        classesArray[i++]=pClass;
-        
+        classesArray[rfm_instances]=pClass;
+        rfm_instances++;
+
     }
     printk("d\n");
 
@@ -654,12 +652,12 @@ void chdev_shutdown(void)
    struct class* pClass=classesArray[0];
    while ((device = strsep(&rfmdevice, ","))) 
    {
-    pClass=classesArray[i++];
-    device_destroy(pClass, devNo);  // Remove the /dev/DEVICE_NAME
+    pClass=classesArray[i];
+    device_destroy(pClass, devNo[i]);  // Remove the /dev/DEVICE_NAME
     class_destroy(pClass);  // Remove class /sys/class/DEVICE_NAME
-    unregister_chrdev(majorNum, device);  // Unregister the device    
+    unregister_chrdev(majorNum[i], device);  // Unregister the device    
     printk("VRFM device deleted on /dev/%s\n",device);
-    pClass++;
+    i++;
    }
 }
 
