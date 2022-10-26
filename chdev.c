@@ -92,7 +92,7 @@ ssize_t device_file_read(
                 }
                 else
                 {
-                    //memset(user_buffer,0,PAGE_SIZE-offsetinpage);
+                    clear_user(user_buffer,PAGE_SIZE-offsetinpage);
                 }
                     
 
@@ -101,7 +101,7 @@ ssize_t device_file_read(
                     //LOG( KERN_NOTICE "vrfm: block1=%d, offset = %u size=%ld\n",block+1,0,count+offsetinpage-PAGE_SIZE);
                     copy_to_user(user_buffer+PAGE_SIZE-offsetinpage, &info->data[block+1][0],count+offsetinpage-PAGE_SIZE);
                 }
-                //else memset(user_buffer+PAGE_SIZE-offsetinpage,0,count+offsetinpage-PAGE_SIZE);
+                else clear_user(user_buffer+PAGE_SIZE-offsetinpage,count+offsetinpage-PAGE_SIZE);
 
                 
 
@@ -113,7 +113,7 @@ ssize_t device_file_read(
                     //LOG( KERN_NOTICE "vrfm: block=%d, offset = %u size=%ld\n",block,offsetinpage,count);
                     copy_to_user(user_buffer, &info->data[block][offsetinpage],count);
                 }
-                //else memset(user_buffer,0,count);
+                else clear_user(user_buffer,count);
                 //
             }
                 
