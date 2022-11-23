@@ -320,11 +320,12 @@ int net_init(void)
                 printk (KERN_ERR "Could not register network hook\n");
                 return -1;
         }
+        sendpacket(infos[index],0,0);
         index++;
     }
     
     
-    //sendpacket(0,0);
+    
     return 0;
 
 }
