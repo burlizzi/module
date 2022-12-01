@@ -23,6 +23,8 @@ jobs:
       - run: |
           if [[ ${{matrix.vector.image}} == *"suse"* ]]; then
             zypper -n install make gcc kernel-default-devel
+          else
+            apt install -y make gcc kernel-default-devel linux-headers-5.15.0-56-generic
           fi       
       - run: |
           make
