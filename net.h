@@ -47,7 +47,7 @@ struct net_rfm
 }__attribute__((packed));
 
 
-int sendpacket (struct mmap_info* info,unsigned int offset,unsigned int length);
+int sendpacket (struct mmap_info* info,unsigned int offset,unsigned int length,enum vrfm_packet_type type);
 int sendpackets (unsigned int offset,unsigned int lenght);
 void net_shutdown(void);
 int net_init(void);

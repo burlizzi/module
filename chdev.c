@@ -155,7 +155,7 @@ ssize_t complete_write(struct file *filp,const char __user *buf,size_t count,lof
     //memcpy(info->data, "Hello from kernel this is file: ", 32);
 
     //LOG( KERN_NOTICE "vrfm: received %s\n" , procfs_buffer);
-    while ((retval=sendpacket(info,(*pos),count))==1)
+    while ((retval=sendpacket(info,(*pos),count,VRFM_MEM_SEND))==1)
                     schedule();
     if (retval==-1)
         return 0;
@@ -380,7 +380,7 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
             start=rfm2gTransfer.Offset;
             for (len=rfm2gTransfer.Length;len>0;len-=CHUNK )
             {
-                while (sendpacket(info, start,len>CHUNK?CHUNK:len)==1);
+                while (sendpacket(info, start,len>CHUNK?CHUNK:len,VRFM_MEM_SEND)==1);
                 start+=CHUNK;
             }
          return( 0 );

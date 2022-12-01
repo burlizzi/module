@@ -1,5 +1,6 @@
 #include "config.h"
 #include "net.h"
+#include "crypt.h"
 #include "protocol.h"
 #include <linux/crc32.h>
 #include <linux/netdevice.h>
@@ -92,6 +93,13 @@ retry:
     switch(__dev_direct_xmit(skbt,0))
 #else    
     switch(dev_queue_xmit(skbt))
+    //struct netdev_queue *txq;
+    //txq = &skbt->dev->_tx[0];
+    //void* accel_priv=NULL;
+    //txq = netdev_pick_tx(skbt->dev, skbt, accel_priv);
+    
+    //switch(netdev_start_xmit(skbt,skbt->dev,txq,false))
+    //switch(dev_queue_xmit_sk(NULL,skbt))
 #endif    
     {
         case NET_XMIT_SUCCESS:
@@ -120,13 +128,14 @@ retry:
     return 0;
 }
 
-int sendpacket (struct mmap_info* info,unsigned int offset,unsigned int length)
+int sendpacket (struct mmap_info* info,unsigned int offset,unsigned int length,enum vrfm_packet_type type)
 {
     struct net_rfm* eth;
     struct sk_buff * skbt;
     int offsetinpage=offset % PAGE_SIZE;
     int block=offset/PAGE_SIZE;
     static uint16_t sequence=0;
+    
 
     //if(length<50)        length=50;
 
@@ -135,7 +144,8 @@ int sendpacket (struct mmap_info* info,unsigned int offset,unsigned int length)
         LOG("vrfm: too big of a packet\n");
         return -1;
     }
-
+    
+    
 
     if(length && !info->data[offset/PAGE_SIZE])
     {
@@ -181,7 +191,7 @@ int sendpacket (struct mmap_info* info,unsigned int offset,unsigned int length)
     eth->header.offset=offset;
     eth->header.crc=0;    
     eth->header.size=length;    
-    eth->header.cmd=length?VRFM_MEM_SEND:VRFM_DUMP_ALL;
+    eth->header.cmd=type;
     eth->header.seq=sequence++;
 
 //    LOG("sendpacket p=%x o=%u l=%u %u %u |%s\n",skbt->protocol,offset,length,offset %PAGE_SIZE,(offset %PAGE_SIZE) + length,&blocks_array[block][offsetinpage]);
@@ -196,8 +206,8 @@ int sendpacket (struct mmap_info* info,unsigned int offset,unsigned int length)
             }
             //LOG("caso 1\n");
 
-            memcpy(eth->data,                        &info->data[block][offsetinpage],PAGE_SIZE-offsetinpage);
-            memcpy(eth->data+PAGE_SIZE-offsetinpage, &info->data[block+1][0],         length+offsetinpage-PAGE_SIZE);
+            encrypt(eth->data,                        &info->data[block][offsetinpage],PAGE_SIZE-offsetinpage);
+            encrypt(eth->data+PAGE_SIZE-offsetinpage, &info->data[block+1][0],         length+offsetinpage-PAGE_SIZE);
         }
         else
         {
@@ -211,7 +221,7 @@ int sendpacket (struct mmap_info* info,unsigned int offset,unsigned int length)
             
             LOG("caso 2 len=%d\n",length);
 */
-            memcpy(eth->data, &info->data[block][offsetinpage],length);
+            encrypt(eth->data, &info->data[block][offsetinpage],length);
 
         }
             
@@ -320,7 +330,7 @@ int net_init(void)
                 printk (KERN_ERR "Could not register network hook\n");
                 return -1;
         }
-        sendpacket(infos[index],0,0);
+        sendpacket(infos[index],0,0,VRFM_DUMP_ALL);
         index++;
     }
     

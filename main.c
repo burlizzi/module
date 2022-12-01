@@ -4,6 +4,7 @@
 #include "chdev.h"
 #include "net.h"
 #include "mmap.h"
+#include "crypt.h"
 
 #include <linux/proc_fs.h>
 #include <linux/version.h>
@@ -15,6 +16,7 @@ MODULE_DESCRIPTION("Virtual Reflective Memory Linux driver");
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Luca Burlizzi");
 MODULE_SOFTDEP("e1000e");
+MODULE_SOFTDEP("aesni-intel");
 
 extern int rfm_instances;
 RFM2G_INT32
@@ -170,7 +172,7 @@ static int vrfm_driver_init(void)
 {
   printk( KERN_NOTICE "vrfm: Starting\n" );
   proc_create("rfm2g",0666,NULL,&rfm2gFOS);
-
+  crypt_init();
   if (mmap_ops_init())
         return -1;
   if (chdev_init())

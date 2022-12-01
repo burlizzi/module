@@ -20,7 +20,7 @@ int transmitPage(struct mmap_info* info,unsigned int offset)
     size_t len=PAGE_SIZE;
     for (i = 0; i < PAGE_SIZE/CHUNK+1; i++)
     {
-        sendpacket(info,offset*PAGE_SIZE+i*CHUNK,len>CHUNK?CHUNK:len);
+        sendpacket(info,offset*PAGE_SIZE+i*CHUNK,len>CHUNK?CHUNK:len,VRFM_MEM_SEND);
         len-=CHUNK;
     }
     return false;
