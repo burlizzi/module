@@ -10,10 +10,10 @@ BUILD_DIR_MAKEFILE ?= $(PWD)/bin/Makefile
 FLAGS = -O3 
 #FLAGS = -O0 -DDEBUG -g
 
-all: module bin/test bin/test1 sync
+all: module sync
 
 debug: FLAGS = -O0 -DDEBUG -g
-debug: all
+debug: all bin/test bin/test1
 
 
 reinstall: uninstall install
