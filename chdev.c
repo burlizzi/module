@@ -104,6 +104,7 @@ ssize_t device_file_read(
                     if (clear_user(user_buffer+PAGE_SIZE-offsetinpage,count+offsetinpage-PAGE_SIZE))
                         LOG( KERN_NOTICE "clear_user failed off=%d count=%ld\n",offsetinpage,count);
                 }
+                else clear_user(user_buffer+PAGE_SIZE-offsetinpage,count+offsetinpage-PAGE_SIZE);
 
                 
 
