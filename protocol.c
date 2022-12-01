@@ -1,6 +1,8 @@
 #include "config.h"
 #include "protocol.h"
 #include "net.h"
+#include "crypt.h"
+
 #include <linux/netdevice.h>
 //#include <linux/lz4.h>
 #include "mmap.h"
@@ -13,20 +15,20 @@ extern int pktsize;
 extern struct mutex mem_mutex; 
 
 
-int transmitPage(unsigned int offset)
+int transmitPage(struct mmap_info* info,unsigned int offset)
 {
     //LOG("------------------------->>>>packet sent %d\n",offset);
     size_t i;
     size_t len=PAGE_SIZE;
     for (i = 0; i < PAGE_SIZE/CHUNK+1; i++)
     {
-        sendpacket(offset*PAGE_SIZE+i*CHUNK,len>CHUNK?CHUNK:len);
+        sendpacket(info,offset*PAGE_SIZE+i*CHUNK,len>CHUNK?CHUNK:len,VRFM_MEM_SEND);
         len-=CHUNK;
     }
     return false;
 }
 
-int receive(struct net_rfm* rec,size_t len)
+int receive(struct mmap_info* info,struct net_rfm* rec,size_t len)
 {
     //struct page* page;
     //mutex_lock(&mem_mutex);
@@ -38,10 +40,10 @@ int receive(struct net_rfm* rec,size_t len)
 
         return -1;
     }
-    if (!blocks_array[rec->header.offset/PAGE_SIZE])
+    if (!info->data[rec->header.offset/PAGE_SIZE])
 	{
 		LOG("allocate page chunk:%lu \n",rec->header.offset/PAGE_SIZE);
-		blocks_array[rec->header.offset/PAGE_SIZE]=(char *)__get_free_pages(GFP_KERNEL, PAGES_ORDER);
+		info->data[rec->header.offset/PAGE_SIZE]=(char *)__get_free_pages(GFP_KERNEL, PAGES_ORDER);
 		
 	}
 
@@ -61,8 +63,8 @@ int receive(struct net_rfm* rec,size_t len)
             size_t i;
             for (i = 0; i < MAP_SIZE/PAGE_SIZE/PAGES_PER_BLOCK; i++)
             {
-                if (blocks_array[i])
-                    transmitPage(i);
+                if (info->data[i])
+                    transmitPage(info,i);
             }
 
         }
@@ -71,17 +73,17 @@ int receive(struct net_rfm* rec,size_t len)
         if(unlikely(rec->header.offset+len>PAGE_SIZE))//we crossed the boundaries
         {
             int offsetinpage=rec->header.offset % PAGE_SIZE;
-            memcpy(blocks_array[rec->header.offset/PAGE_SIZE]+(offsetinpage),rec->data,PAGE_SIZE-offsetinpage);
-            memcpy(blocks_array[rec->header.offset/PAGE_SIZE+1]+(offsetinpage),rec->data,len+offsetinpage-PAGE_SIZE);
+            decrypt(info->data[rec->header.offset/PAGE_SIZE]+(offsetinpage),rec->data,PAGE_SIZE-offsetinpage);
+            decrypt(info->data[rec->header.offset/PAGE_SIZE+1]+(offsetinpage),rec->data,len+offsetinpage-PAGE_SIZE);
         }
         else
-            memcpy(blocks_array[rec->header.offset/PAGE_SIZE]+(rec->header.offset % PAGE_SIZE),rec->data,len);
+            decrypt(info->data[rec->header.offset/PAGE_SIZE]+(rec->header.offset % PAGE_SIZE),rec->data,len);
         break;
     
     default:
         break;
     }
-    
+    /**/
     //mutex_unlock(&mem_mutex);
     //unlock_page(page);
     return 42;

@@ -8,7 +8,11 @@
         "pgtable_types.h": "c",
         "mmap.h": "c",
         "param.h": "c",
-        "page-flags-layout.h": "c"
+        "page-flags-layout.h": "c",
+        "aes.h": "c",
+        "crypto.h": "c",
+        "i387.h": "c",
+        "kallsyms.h": "c"
     },
     "C_Cpp.errorSquiggles": "Disabled"
 }

@@ -142,7 +142,7 @@ int main(int argc, char **argv)
 
     /* Cleanup. */
     puts("munmap 1");
-    if (munmap(address1, page_size)) [[unlikely]] {
+    if (munmap(address1, page_size))  {
         perror("munmap");
         assert(0);
     }

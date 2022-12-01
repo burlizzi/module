@@ -8,15 +8,17 @@
 
 struct mmap_info {
 	//struct delayed_work deferred_work;
+	char name[100];
 	char **data;
 	int reference;
-	struct file *lower_file;
+	//struct file *lower_file;
 	//const struct vm_operations_struct *lower_vm_ops;	
 	//int delay;
-	struct page* page;
-	int x;
+	//struct page* page;
+	int index;
 };
-extern char** blocks_array;
+//extern char** blocks_array;
+extern int blocks;
 int mmap_ops_init(void);
 int mmap_open(struct inode *inode, struct file *filp);
 int memory_map (struct file * f, struct vm_area_struct * vma);

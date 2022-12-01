@@ -4,6 +4,7 @@
 #include "chdev.h"
 #include "net.h"
 #include "mmap.h"
+#include "crypt.h"
 
 #include <linux/proc_fs.h>
 #include <linux/version.h>
@@ -15,8 +16,12 @@ MODULE_DESCRIPTION("Virtual Reflective Memory Linux driver");
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Luca Burlizzi");
 MODULE_SOFTDEP("e1000e");
+#if LINUX_VERSION_CODE > KERNEL_VERSION(5,2,0)
+MODULE_IMPORT_NS(CRYPTO_INTERNAL);
+#endif
 
 
+extern int rfm_instances;
 RFM2G_INT32
 RFM2gReadProcPage( char *buf, char **start, off_t offset, int len, int *unused,
                   void *data_unused)
@@ -46,7 +51,7 @@ RFM2gReadProcPage( char *buf, char **start, off_t offset, int len, int *unused,
     if( bytesRead > PAGE_SIZE-80 ) return( bytesRead ); /* This is enough! */
 
     bytesRead += sprintf( buf+bytesRead, "RFM2G_DEVICE_COUNT         %d\n\n",
-        1 );
+        rfm_instances );
     if( bytesRead > PAGE_SIZE-80 ) return( bytesRead ); /* This is enough! */
 
     /* Show the contents of the RFM2GDEVICEINFO structures 
@@ -166,19 +171,17 @@ struct file_operations rfm2gFOS =
 };
 
 #endif
-
 static int vrfm_driver_init(void)
 {
   printk( KERN_NOTICE "vrfm: Starting\n" );
   proc_create("rfm2g",0666,NULL,&rfm2gFOS);
-
-   if (net_init())
+  crypt_init();
+  if (mmap_ops_init())
         return -1;
-   if (mmap_ops_init())
+  if (chdev_init())
         return -1;
-   if (chdev_init())
+  if (net_init())
         return -1;
-
   return 0;
 }
 
@@ -191,6 +194,7 @@ static void vrfm_driver_exit(void)
     net_shutdown();
     chdev_shutdown();
     mmap_shutdown();
+    crypt_done();
     printk( KERN_NOTICE "vrfm: done\n" );
 }
 

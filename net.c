@@ -1,5 +1,6 @@
 #include "config.h"
 #include "net.h"
+#include "crypt.h"
 #include "protocol.h"
 #include <linux/crc32.h>
 #include <linux/netdevice.h>
@@ -8,8 +9,8 @@
 
 unsigned char dest[ETH_ALEN] = {0xff,0xff,0xff,0xff,0xff,0xff}; //broadcast
 
-struct net_device* dev_eth;
-
+struct net_device* dev_eth[MAX_RFM2G_DEVICES];
+extern int rfm_instances;
 
 static char *netdevice = "eth0";
 module_param(netdevice, charp,S_IRUGO);
@@ -92,6 +93,13 @@ retry:
     switch(__dev_direct_xmit(skbt,0))
 #else    
     switch(dev_queue_xmit(skbt))
+    //struct netdev_queue *txq;
+    //txq = &skbt->dev->_tx[0];
+    //void* accel_priv=NULL;
+    //txq = netdev_pick_tx(skbt->dev, skbt, accel_priv);
+    
+    //switch(netdev_start_xmit(skbt,skbt->dev,txq,false))
+    //switch(dev_queue_xmit_sk(NULL,skbt))
 #endif    
     {
         case NET_XMIT_SUCCESS:
@@ -120,13 +128,14 @@ retry:
     return 0;
 }
 
-int sendpacket (unsigned int offset,unsigned int length)
+int sendpacket (struct mmap_info* info,unsigned int offset,unsigned int length,enum vrfm_packet_type type)
 {
     struct net_rfm* eth;
     struct sk_buff * skbt;
     int offsetinpage=offset % PAGE_SIZE;
     int block=offset/PAGE_SIZE;
     static uint16_t sequence=0;
+    
 
     //if(length<50)        length=50;
 
@@ -135,9 +144,10 @@ int sendpacket (unsigned int offset,unsigned int length)
         LOG("vrfm: too big of a packet\n");
         return -1;
     }
+    
+    
 
-
-    if(length && !blocks_array[offset/PAGE_SIZE])
+    if(length && !info->data[offset/PAGE_SIZE])
     {
         LOG("vrfm: blocks_array %lu not allocated!!\n",offset/PAGE_SIZE);
         return -1;
@@ -167,7 +177,7 @@ int sendpacket (unsigned int offset,unsigned int length)
         return -1;
     }
 
-    dev_hard_header(skbt,dev_eth,PROT_NUMBER,dest,dev_eth->dev_addr,sizeof(struct rfm_header)+length);
+    dev_hard_header(skbt,dev_eth[info->index],PROT_NUMBER,dest,dev_eth[info->index]->dev_addr,sizeof(struct rfm_header)+length);
     //skbt->protocol = PROT_NUMBER;
     if (skb_network_header(skbt) < skbt->data ||
                 skb_network_header(skbt) > skb_tail_pointer(skbt)) 
@@ -176,12 +186,12 @@ int sendpacket (unsigned int offset,unsigned int length)
     }
 
 
-    skbt->dev=dev_eth;
+    skbt->dev=dev_eth[info->index];
     eth->header.version =1;
     eth->header.offset=offset;
     eth->header.crc=0;    
     eth->header.size=length;    
-    eth->header.cmd=length?VRFM_MEM_SEND:VRFM_DUMP_ALL;
+    eth->header.cmd=type;
     eth->header.seq=sequence++;
 
 //    LOG("sendpacket p=%x o=%u l=%u %u %u |%s\n",skbt->protocol,offset,length,offset %PAGE_SIZE,(offset %PAGE_SIZE) + length,&blocks_array[block][offsetinpage]);
@@ -189,15 +199,15 @@ int sendpacket (unsigned int offset,unsigned int length)
     {
         if( unlikely(offsetinpage+length>PAGE_SIZE))//we crossed the boundaries
         {
-            if(!blocks_array[block+1])
+            if(!info->data[block+1])
             {
                 LOG("vrfm: blocks_array+1=%d not allocated!!\n",block+1);
                 return -1;
             }
             //LOG("caso 1\n");
 
-            memcpy(eth->data,                        &blocks_array[block][offsetinpage],PAGE_SIZE-offsetinpage);
-            memcpy(eth->data+PAGE_SIZE-offsetinpage, &blocks_array[block+1][0],         length+offsetinpage-PAGE_SIZE);
+            encrypt(eth->data,                        &info->data[block][offsetinpage],PAGE_SIZE-offsetinpage);
+            encrypt(eth->data+PAGE_SIZE-offsetinpage, &info->data[block+1][0],         length+offsetinpage-PAGE_SIZE);
         }
         else
         {
@@ -211,7 +221,7 @@ int sendpacket (unsigned int offset,unsigned int length)
             
             LOG("caso 2 len=%d\n",length);
 */
-            memcpy(eth->data, &blocks_array[block][offsetinpage],length);
+            encrypt(eth->data, &info->data[block][offsetinpage],length);
 
         }
             
@@ -226,7 +236,7 @@ int sendpacket (unsigned int offset,unsigned int length)
 
 
 
-static struct packet_type hook; /* Initialisation routine */
+static struct packet_type hook[MAX_RFM2G_DEVICES]; /* Initialisation routine */
 
 
 /*Print eth  headers*/
@@ -258,8 +268,8 @@ static int hook_func( struct sk_buff *skb,
             
             if (data->header.crc==Crc32(data->data,data->header.size))
             {
-                receive(data,data->header.size);
-                //LOG("CRC correct %x,%x len=%d\n",data->header.crc,Crc32(data->data,data->header.size),data->header.size);
+                receive(pt->af_packet_priv,data,data->header.size);
+                //LOG("CRC correct %x,%x len=%d pt=%d\n",data->header.crc,Crc32(data->data,data->header.size),data->header.size,pt->list.next);
             }
             else  LOG("CRC ERROR %x,%x len=%d\n",data->header.crc,Crc32(data->data,data->header.size),data->header.size);
 
@@ -278,49 +288,64 @@ static int hook_func( struct sk_buff *skb,
 
 
 
-int handler_add_config (void)
-{
-        hook.type = cpu_to_be16(PROT_NUMBER);// htons(ETH_P_ALL);
-        hook.func = (void *)hook_func;
-        hook.dev = dev_eth;
-        dev_add_pack(&hook);
-        LOG("VRFM Protocol registered with packet type 0x%x. pktsize=%d\n",PROT_NUMBER,pktsize);
-        return 0;
-
-}
 int net_init(void)
 {
     int err=0;
     int i=1;
-    
-    LOG(KERN_INFO "netif is : %s\n", netdevice);
-    dev_eth=dev_get_by_name(&init_net,netdevice);
-    if (!dev_eth)
+    static char save[128];
+    char* point;
+    char* device=NULL;
+    int index=0;
+
+    strcpy(save,netdevice);
+    point=&save[0];
+
+    while ((device = strsep(&point, ","))) 
     {
-        printk("dev not found, choose one of the following:\n");
-        for (dev_eth=dev_get_by_index(&init_net,1);(dev_eth=dev_get_by_index(&init_net,i)) && i < 100 && dev_eth; i++)
+        LOG(KERN_INFO "netif is : %s\n", device);
+        dev_eth[index]=dev_get_by_name(&init_net,device);
+        if (!dev_eth[index])
         {
-            printk("dev %d: %s\n",i,dev_eth->name);
-            dev_put(dev_eth);
-        }
-        
+            printk("dev not found, choose one of the following:\n");
+            for (dev_eth[index]=dev_get_by_index(&init_net,1);(dev_eth[index]=dev_get_by_index(&init_net,i)) && i < 100 && dev_eth[index]; i++)
+            {
+                printk("dev %d: %s\n",i,dev_eth[index]->name);
+                dev_put(dev_eth[index]);
+            }
+            
 
-        return -1;
-    }   
-
-    err=handler_add_config();
-
-  
-    if (err) {
-            printk (KERN_ERR "Could not register network hook\n");
             return -1;
+        }   
+
+        
+        hook[index].type = cpu_to_be16(PROT_NUMBER);// htons(ETH_P_ALL);
+        hook[index].func = (void *)hook_func;
+        hook[index].dev = dev_eth[index];
+        hook[index].af_packet_priv = infos[index];
+        dev_add_pack(&hook[index]);
+        LOG("VRFM Protocol registered with packet type 0x%x. pktsize=%d\n",PROT_NUMBER,pktsize);
+
+    
+        if (err) {
+                printk (KERN_ERR "Could not register network hook\n");
+                return -1;
+        }
+        sendpacket(infos[index],0,0,VRFM_DUMP_ALL);
+        index++;
     }
-    sendpacket(0,0);
+    
+    
+    
     return 0;
 
 }
 void net_shutdown(void)
 {
-    dev_put(dev_eth);
-    dev_remove_pack(&hook);
+    size_t i;
+    for (i = 0; i < rfm_instances; i++)
+    {
+        dev_put(dev_eth[i]);
+        dev_remove_pack(&hook[i]);
+    }
+    
 }

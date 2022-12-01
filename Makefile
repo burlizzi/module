@@ -10,10 +10,10 @@ BUILD_DIR_MAKEFILE ?= $(PWD)/bin/Makefile
 FLAGS = -O3 
 #FLAGS = -O0 -DDEBUG -g
 
-all: module bin/test sync
+all: module sync
 
 debug: FLAGS = -O0 -DDEBUG -g
-debug: all
+debug: all bin/test bin/test1
 
 
 reinstall: uninstall install
@@ -23,10 +23,12 @@ sync:
 
 
 bin/test: test.c
-	${CC} -g test.c -o "bin/test"
+	${CC} $(FLAGS) -g test.c -o "bin/test"
+bin/test1: test1.c
+	${CC} $(FLAGS) -g test1.c -o "bin/test1" -I rfm2g/include -L rfm2g/api/ -l rfm2g
 
 obj-m += $(MODULE_NAME).o 
- $(MODULE_NAME)-y += chdev.o main.o  vrfm_mmap.o net.o protocol.o
+ $(MODULE_NAME)-y += chdev.o main.o  vrfm_mmap.o net.o protocol.o crypt.o 
 
 module: $(BUILD_DIR_MAKEFILE) 
 	KCPPFLAGS=" -DMODULE_NAME=$(MODULE_NAME) -DMAP_SIZE=$(MAP_SIZE) $(FLAGS)"  	make -C $(BUILD_DIR) M=$(MOD_OUTPUT_DIR) src=$(PWD) CC=${CC} modules
@@ -58,7 +60,8 @@ clean:
 
 install: all
 	KCPPFLAGS=" -DMODULE_NAME=$(MODULE_NAME) -DMAP_SIZE=$(MAP_SIZE)" make -C $(BUILD_DIR)   M=$(MOD_OUTPUT_DIR) src=$(PWD) CC=${CC} modules
-	@sudo insmod $(MOD_OUTPUT_DIR)/$(MODULE_NAME).ko 
+	@sudo insmod $(MOD_OUTPUT_DIR)/$(MODULE_NAME).ko netdevice=eth0 debug=1 rfmdevice=rfm2g0
+	
 
 uninstall:
 	@lsmod | grep $(MODULE_NAME) && sudo rmmod $(MODULE_NAME) || echo "module is not loaded"

@@ -2,18 +2,19 @@
 #define xstr(a) str(a)
 #define str(a) #a
 
-#ifndef DEVICE_NAME
-#define DEVICE_NAME vrfm
-#endif
-
 #ifndef MODULE_NAME
-#define MODULE_NAME rfm2g0
+#define MODULE_NAME vrfm
 #endif
 extern bool debug;
 #define LOG if (unlikely(debug)) printk
 
 #define RFM2G_MAGIC 0xeb
 #include "rfm2g_types.h"
+
+
+#ifndef MAX_RFM2G_DEVICES
+  #define MAX_RFM2G_DEVICES  5
+#endif
 
 
 #define RFM2G_PRODUCT_STRING    "AB-RFM2G-DRV-LNX"
