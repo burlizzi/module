@@ -15,7 +15,10 @@ enum vrfm_packet_type
     VRFM_MEM_SEND,
     VRFM_DUMP_ALL,
     VRFM_RESET,
-    VRFM_EVENT
+    VRFM_EVENT,
+    VRFM_CRYPT,
+    VRFM_PING,
+    VRFM_PINGREPLY
 };
 
 struct rfm_header

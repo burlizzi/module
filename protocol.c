@@ -1,6 +1,8 @@
 #include "config.h"
 #include "protocol.h"
 #include "net.h"
+#include "crypt.h"
+
 #include <linux/netdevice.h>
 //#include <linux/lz4.h>
 #include "mmap.h"
@@ -71,11 +73,11 @@ int receive(struct mmap_info* info,struct net_rfm* rec,size_t len)
         if(unlikely(rec->header.offset+len>PAGE_SIZE))//we crossed the boundaries
         {
             int offsetinpage=rec->header.offset % PAGE_SIZE;
-            memcpy(info->data[rec->header.offset/PAGE_SIZE]+(offsetinpage),rec->data,PAGE_SIZE-offsetinpage);
-            memcpy(info->data[rec->header.offset/PAGE_SIZE+1]+(offsetinpage),rec->data,len+offsetinpage-PAGE_SIZE);
+            decrypt(info->data[rec->header.offset/PAGE_SIZE]+(offsetinpage),rec->data,PAGE_SIZE-offsetinpage);
+            decrypt(info->data[rec->header.offset/PAGE_SIZE+1]+(offsetinpage),rec->data,len+offsetinpage-PAGE_SIZE);
         }
         else
-            memcpy(info->data[rec->header.offset/PAGE_SIZE]+(rec->header.offset % PAGE_SIZE),rec->data,len);
+            decrypt(info->data[rec->header.offset/PAGE_SIZE]+(rec->header.offset % PAGE_SIZE),rec->data,len);
         break;
     
     default:

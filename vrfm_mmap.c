@@ -379,7 +379,7 @@ int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 #else
 	int myoff=((long unsigned int)vmf->virtual_address-vma->vm_start)/PAGE_SIZE/PAGES_PER_BLOCK;
 #endif
-	struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
+	//struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
 	lock_page(vmf->page);
 	
 	//info->page=vmf->page;

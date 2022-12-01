@@ -191,6 +191,7 @@ static void vrfm_driver_exit(void)
     net_shutdown();
     chdev_shutdown();
     mmap_shutdown();
+    crypt_done();
     printk( KERN_NOTICE "vrfm: done\n" );
 }
 

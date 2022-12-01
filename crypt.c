@@ -19,51 +19,53 @@
 
 
 
-void (*aesni_enc)(struct crypto_aes_ctx *ctx, u8 *out,const u8 *in);
-void (*aesni_dec)(struct crypto_aes_ctx *ctx, u8 *out,const u8 *in);
 
 
 char * cryptokey=NULL;
 module_param(cryptokey, charp,S_IRUGO);
-MODULE_PARM_DESC(cryptokey, "crypto key");
+MODULE_PARM_DESC(cryptokey, "crypto key (must be 16 bytes)");
 
 
-struct crypto_tfm tfm;
-
-struct crypto_aes_ctx *ctx;
+struct crypto_cipher *tfm;
 
 void crypt_init()
 {
-    aesni_enc=kallsyms_lookup_name("aesni_enc");
-    aesni_dec=kallsyms_lookup_name("aesni_dec");
-    LOG("vrfm: aesni_enc=%p aesni_dec=%p\n",aesni_enc,aesni_dec);
-    ctx = crypto_tfm_ctx(&tfm);
+    int ret;
     if (cryptokey)
-        crypto_aes_set_key(&tfm, cryptokey, AES_KEYSIZE_256);
-        
+    {
+        tfm = crypto_alloc_cipher("aes", 0, 0);
+        if (IS_ERR(tfm)) {
+            LOG(KERN_CRIT "Failed to alloc tfm for context %p\n",
+                    tfm);
+            cryptokey=NULL;
+            return;
+        }
+        ret = crypto_cipher_setkey(tfm, cryptokey, AES_KEYSIZE_256);
+        if (ret) {
+            LOG(KERN_CRIT "PRNG: setkey() failed flags=%x\n",
+                crypto_cipher_get_flags(tfm));
+            cryptokey=NULL;
+        }
+        LOG("crypto engine=%s\n",tfm->base.__crt_alg->cra_driver_name);
+    }       
 }
 
 void crypt_done()
 {
-
+    crypto_free_cipher(tfm);
 }
 
 void encrypt(char* dest,const char* src,size_t  len)
 {
+    unsigned int bsize;
+    unsigned int i;
+    
     if (cryptokey)
     {
-        //AES_encrypt(&tfm,dest,src);
-        
-        if (irq_fpu_usable() && aesni_enc)
-        {
-            kernel_fpu_begin();
-            aesni_enc(ctx, dest, src);
-            kernel_fpu_end();
-        } 
-        else
-            crypto_aes_encrypt_x86(ctx, dest, src);
-
-        /**/   
+        bsize = crypto_cipher_blocksize(tfm);
+		for (i = 0; i < len; i += bsize) {
+            crypto_cipher_encrypt_one(tfm, dest+i, src+i);
+        }
     }
     else
         memcpy(dest,src,len);
@@ -73,19 +75,14 @@ void encrypt(char* dest,const char* src,size_t  len)
 
 void decrypt(char* dest,const char* src,size_t  len)
 {
+    unsigned int bsize;
+    unsigned int i;
     if (cryptokey)
     {
-        //AES_decrypt(&tfm,dest,src);
-        
-        if (irq_fpu_usable() && aesni_dec)
-        {
-            kernel_fpu_begin();
-            aesni_dec(ctx, dest, src);
-            kernel_fpu_end();
+        bsize = crypto_cipher_blocksize(tfm);
+		for (i = 0; i < len; i += bsize) {
+            crypto_cipher_decrypt_one(tfm, dest+i, src+i);
         }
-        else 
-            crypto_aes_decrypt_x86(ctx, dest, src);
-        
     }
     else
         memcpy(dest,src,len);
