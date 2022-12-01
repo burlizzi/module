@@ -1,7 +1,6 @@
 #include <linux/crypto.h>
 #include <linux/uaccess.h>  
 #include <linux/device.h>
-#include <asm/i387.h>
 #include <asm/crypto/aes.h>
 #include <linux/stat.h>
 #include <linux/moduleparam.h>
