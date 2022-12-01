@@ -20,11 +20,12 @@ jobs:
         - image: opensuse/tumbleweed
     container: ${{matrix.vector.image}}
     steps:
+      - uses: actions/checkout@v3
       - run: |
           if [[ ${{matrix.vector.image}} == *"suse"* ]]; then
             zypper -n install make gcc kernel-default-devel
           else
-            apt install -y make gcc kernel-default-devel linux-headers-5.15.0-56-generic
+            apt update && apt search linux-headers- && apt install -y make gcc kernel-default-devel linux-headers-5.15.0-56-generic
           fi       
       - run: |
           make
