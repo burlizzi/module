@@ -1,4 +1,10 @@
+#include <linux/version.h>
+
+#if LINUX_VERSION_CODE > KERNEL_VERSION(5,2,0)
+#include <crypto/internal/cipher.h>
+#else
 #include <linux/crypto.h>
+#endif
 #include <linux/uaccess.h>  
 #include <linux/device.h>
 #include <linux/stat.h>

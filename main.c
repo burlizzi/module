@@ -16,7 +16,10 @@ MODULE_DESCRIPTION("Virtual Reflective Memory Linux driver");
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Luca Burlizzi");
 MODULE_SOFTDEP("e1000e");
-MODULE_SOFTDEP("aesni-intel");
+#if LINUX_VERSION_CODE > KERNEL_VERSION(5,2,0)
+MODULE_IMPORT_NS(CRYPTO_INTERNAL);
+#endif
+
 
 extern int rfm_instances;
 RFM2G_INT32
