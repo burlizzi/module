@@ -137,7 +137,7 @@ static int fb_deferred_io_set_page_dirty(struct page *page)
 }
 
 
-static int fb_deferred_io_work(struct mmap_info* info);
+static int fb_deferred_io_work(void* info);
 
 
 static const struct address_space_operations fb_deferred_io_aops = {
@@ -301,8 +301,9 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 int page_mkclean(struct page *page);
 
 
-static int fb_deferred_io_work(struct mmap_info* info)
+static int fb_deferred_io_work(void* ptr)
 {
+	struct mmap_info* info=ptr;
 	struct page* page;
 	short *index;
 
