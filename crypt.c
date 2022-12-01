@@ -1,7 +1,6 @@
 #include <linux/crypto.h>
 #include <linux/uaccess.h>  
 #include <linux/device.h>
-#include <asm/crypto/aes.h>
 #include <linux/stat.h>
 #include <linux/moduleparam.h>
 #include <linux/kallsyms.h>
@@ -39,7 +38,7 @@ void crypt_init()
             cryptokey=NULL;
             return;
         }
-        ret = crypto_cipher_setkey(tfm, cryptokey, AES_KEYSIZE_256);
+        ret = crypto_cipher_setkey(tfm, cryptokey, strlen(cryptokey));
         if (ret) {
             LOG(KERN_CRIT "PRNG: setkey() failed flags=%x\n",
                 crypto_cipher_get_flags(tfm));
