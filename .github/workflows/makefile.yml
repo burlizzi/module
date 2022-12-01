@@ -7,21 +7,24 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build:
-
+  docker:
+    name: ${{matrix.vector.image}}
     runs-on: ubuntu-latest
-
+    strategy:
+      fail-fast: false
+      matrix:
+        vector:
+        - image: ubuntu
+        - image: debian
+        - image: opensuse/leap
+        - image: opensuse/tumbleweed
+    container: ${{matrix.vector.image}}
     steps:
-#    - uses: docker://opensuse/amd64:42.1
-    - uses: actions/checkout@v3
-    
-    - name: Compilation
-      run: make
-      
-    - name: 'Upload Artifact'
-      uses: actions/upload-artifact@v3
-      with:
-        name: kernel module
-        path: bin/vrfm.ko
-        retention-days: 5      
+      - run: |
+          if [[ ${{matrix.vector.image}} == *"suse"* ]]; then
+            zypper -n install make gcc kernel-default-devel
+          fi       
+      - run: |
+          make
+          
     
