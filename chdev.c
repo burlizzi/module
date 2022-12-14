@@ -528,6 +528,26 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
             }
         }
         return( 0 );
+        
+        break;
+        
+        case IOCTL_RFM2G_CANCEL_EVENT:
+        {
+            LOG(KERN_ERR": IOCTL_RFM2G_CANCEL_EVENT\n" );
+            return( 0 );
+        }            
+        break;
+        case IOCTL_RFM2G_DISABLE_EVENT:
+        {
+            LOG(KERN_ERR": IOCTL_RFM2G_DISABLE_EVENT\n" );
+            return( 0 );
+        }            
+        break;
+        case IOCTL_RFM2G_CLEAR_EVENT:
+        {
+            LOG(KERN_ERR": IOCTL_RFM2G_CLEAR_EVENT\n" );
+            return( 0 );
+        }            
         break;
         case IOCTL_RFM2G_WAIT_FOR_EVENT:
         {
@@ -599,11 +619,21 @@ int chdev_init(void)
         devices[rfm_instances]=device;
         LOG("device %s\n",device);
         infos[rfm_instances]=info=kmalloc(sizeof(struct mmap_info), GFP_KERNEL);
+
+        mutex_init(&info->mem_mutex);	
+
+        mutex_init(&info->etx_mutex);	
+        mutex_lock(&info->etx_mutex);
+
        	info->data = kmalloc(blocks*sizeof(char*), GFP_KERNEL);
 	    memset(info->data,0,blocks*sizeof(char*));
     	info->reference = 0;
         info->index = rfm_instances;
+    	strcpy(info->name, device);
 
+
+        info->dirt_pages=kmalloc(size/PAGE_SIZE*sizeof(short), GFP_KERNEL);
+        memset(info->dirt_pages,-1,size/PAGE_SIZE*sizeof(short));
 
 
         pClass=classesArray[rfm_instances];

@@ -39,9 +39,7 @@
 //static DEFINE_MUTEX(mmap_device_mutex);
 //struct mmap_info *info = NULL;
 
-static struct task_struct *thread1;
-struct mutex etx_mutex; 
-struct mutex mem_mutex; 
+
 extern int rfm_instances;
 extern char* devices[MAX_RFM2G_DEVICES];  // Major and Minor device numbers combined into 32 bits
 extern struct mmap_info* infos[MAX_RFM2G_DEVICES];
@@ -53,13 +51,29 @@ bool debug = false;
 module_param(debug, bool,S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 
 
+inline void try_lock(struct mutex* mutex)
+{
+	mutex_lock(mutex);
+	/*
+	size_t i;
+	for (i = 0; i < 100; i++)
+	{
+		if (mutex_trylock(mutex))
+			return;
+        schedule();
+        usleep_range(100,1000);
+	}
+	LOG(KERN_WARNING "waiting for mutex expired\n");
+	*/
+	
+}
 
 
 
 int blocks=MAP_SIZE/PAGE_SIZE/PAGES_PER_BLOCK;
 
 //char** blocks_array=NULL;
-short* dirt_pages;
+//short* dirt_pages;
 //short* current_dirt;
 
 static int notify_param(const char *val, const struct kernel_param *kp)
@@ -184,11 +198,11 @@ int mmap_open(struct inode *inode, struct file *filp)
 
 
 
-	thread1 = kthread_create(fb_deferred_io_work,info,"thread");
-    if((thread1))
+	info->thread = kthread_create(fb_deferred_io_work,info,"thread");
+    if((info->thread))
         {
         LOG(KERN_INFO "in if");
-        wake_up_process(thread1);
+        wake_up_process(info->thread);
         }
 
     return 0;
@@ -204,10 +218,22 @@ void mmap_close(struct vm_area_struct *vma)
 	short *index;
 	struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
 	LOG("mmap_close %d %s\n",info->reference,info->name);
-	for ( index = dirt_pages; *index>=0  ; index++)
+	for ( index = info->dirt_pages; *index>=0  ; index++)
 	{
-		page=virt_to_page(info->data[*index]);
-		page->mapping = NULL;
+		if(info->data[*index])
+		{
+			page=virt_to_page(info->data[*index]);
+			if (page)
+			{
+				page->mapping = NULL;
+			}
+			else
+				printk("ERROR page is null\n");
+			
+		}
+		else
+			printk("ERROR info->data[xx] is null\n");
+
 	}
 }
 
@@ -237,10 +263,10 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	unsigned long offset = ((vmf->pgoff % PAGES_PER_BLOCK) << PAGE_SHIFT);
 	int block=vmf->pgoff>>PAGES_ORDER;
 	//LOG("mmap_fault gfp_mask:%x pgoff:%ld flags=%x\n",vmf->gfp_mask,vmf->pgoff,vmf->flags);
-	mutex_lock(&mem_mutex);
-	
+
 
 	info = (struct mmap_info *)vma->vm_private_data;
+	try_lock(&info->mem_mutex);
 
 	if (!info->data) {
 		LOG("No data\n");
@@ -292,9 +318,9 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	//page->mapping = (long int)page->mapping | PAGE_MAPPING_MOVABLE;
 
 	vmf->page = page;
-
+	mutex_unlock(&info->mem_mutex);
 	lock_page(page);
-	mutex_unlock(&mem_mutex);
+	
 	return VM_FAULT_LOCKED;
 }
 
@@ -310,23 +336,23 @@ static int fb_deferred_io_work(void* ptr)
 
 	while (info->reference)
 	{
-		mutex_lock(&etx_mutex);
-		mutex_lock(&mem_mutex);
+		try_lock(&info->etx_mutex);
+		try_lock(&info->mem_mutex);
 		
-		for ( index = dirt_pages; *index>=0  ; index++)
+		for ( index = info->dirt_pages; *index>=0  ; index++)
 		{
 			
 
 
-			page=virt_to_page(info->data[*index]);
-			lock_page(page);
 			//LOG("lock\n");
 			if (!info->data[*index])
 			{
-				LOG("ERROR %p %d\n",info->data[*index],*index);
+				printk("ERROR %p %p %d\n",info,info->data[*index],*index);
 				continue;
 			}
 
+			page=virt_to_page(info->data[*index]);
+			lock_page(page);
 			
 			if (PageDirty(page))
 			{
@@ -344,17 +370,19 @@ static int fb_deferred_io_work(void* ptr)
 					
 			//LOG("unlock\n");
 			unlock_page(page);
+			
 		}
-		mutex_unlock(&mem_mutex);
+		mutex_unlock(&info->mem_mutex);
 		if(kthread_should_stop()) {
-			LOG(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> terminato\n");
-			do_exit(0);
+			LOG(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> %s terminato\n",info->name);
+			break;
+			//do_exit(0);
 		}
 
 	}
 
 
-	LOG(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> finito\n");
+	LOG(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> %s finito\n",info->name);
 
 	return 0;
 }
@@ -380,27 +408,35 @@ int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 #else
 	int myoff=((long unsigned int)vmf->virtual_address-vma->vm_start)/PAGE_SIZE/PAGES_PER_BLOCK;
 #endif
-	//struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
+	struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
+	mutex_lock(&info->mem_mutex);	
 	lock_page(vmf->page);
 	
 	//info->page=vmf->page;
 	//info->x = myoff;
  	
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0))	
-	LOG("page_mkwrite flags:%x offset:%ld pgoff:%ld page:%p\n",vmf->flags,vmf->address-vma->vm_start,vmf->pgoff,vmf->page);
+	//LOG("page_mkwrite flags:%x offset:%ld pgoff:%ld page:%p\n",vmf->flags,vmf->address-vma->vm_start,vmf->pgoff,vmf->page);
 #else
-	LOG("page_mkwrite flags:%x pgoff:%d page:%p\n",vmf->flags,myoff,vmf->page);
+	//LOG("page_mkwrite flags:%x pgoff:%d page:%p\n",vmf->flags,myoff,vmf->page);
 #endif
-	for ( index = dirt_pages; *index>=0  && myoff!=*index ; index++)
+	for ( index = info->dirt_pages; *index>=0  && myoff!=*index ; index++)
 	{
-		if (index-dirt_pages>blocks)
+
+		if (index-info->dirt_pages>blocks)
 		{
 			return VM_FAULT_SIGBUS;
 		}
 	}
+	if (!info->data[myoff])
+	{
+		printk("ERROR NO SUCH PAGE!!!!\n");
+	}
+
 	*index=myoff;
 	//LOG("unlocking \n");
-	mutex_unlock(&etx_mutex);
+	mutex_unlock(&info->mem_mutex);
+	mutex_unlock(&info->etx_mutex);
 	//schedule_delayed_work(&info->deferred_work, 1);
 
 
@@ -492,8 +528,8 @@ int mmapfop_close(struct inode *inode, struct file *filp)
 
 	if (info->reference==0)
 	{
-		mutex_unlock(&etx_mutex);
-		if(!kthread_stop(thread1))
+		mutex_unlock(&info->etx_mutex);
+		if(!kthread_stop(info->thread))
 			LOG(KERN_INFO "Thread stopped\n");
 
 	}
@@ -562,8 +598,6 @@ int mmap_ops_init(void)
 	//blocks_array=kmalloc(blocks*sizeof(char*), GFP_KERNEL);
 	//memset(blocks_array,0,blocks*sizeof(char*));
 
-	dirt_pages=kmalloc(size/PAGE_SIZE*sizeof(short), GFP_KERNEL);
-	memset(dirt_pages,-1,size/PAGE_SIZE*sizeof(short));
 
 	//info = kmalloc(sizeof(struct mmap_info), GFP_KERNEL);
 	
@@ -573,10 +607,6 @@ int mmap_ops_init(void)
 	//info->delay=0;
 
  	//INIT_DELAYED_WORK(&info->deferred_work, fb_deferred_io_work);
-	mutex_init(&mem_mutex);	
-
-	mutex_init(&etx_mutex);	
-	mutex_lock(&etx_mutex);
 
 	
    //mutex_init(&mmap_device_mutex);
