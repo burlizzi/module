@@ -254,11 +254,10 @@ static int hook_func( struct sk_buff *skb,
 					 struct net_device *out)
 {
         struct ethhdr *eth;    
-        preempt_disable();    
-        
+        //preempt_disable();    
+        //preempt_enable();
         eth= eth_hdr(skb);
         //unsigned char* data=skb->data;
-        
 
         if (ntohs(eth->h_proto)==PROT_NUMBER)
         if (memcmp(in->dev_addr,eth->h_source,ETH_ALEN))
@@ -268,8 +267,21 @@ static int hook_func( struct sk_buff *skb,
             
             if (data->header.crc==Crc32(data->data,data->header.size))
             {
-                receive(pt->af_packet_priv,data,data->header.size);
-                //LOG("CRC correct %x,%x len=%d pt=%d\n",data->header.crc,Crc32(data->data,data->header.size),data->header.size,pt->list.next);
+                struct mmap_info* info=pt->af_packet_priv;
+                //LOG("CRC correct %x,%x len=%d pt=%p name= %s\n",data->header.crc,Crc32(data->data,data->header.size),data->header.size,pt->list.next,info->name);
+                if (mutex_is_locked(&info->mem_mutex))
+                {
+                    LOG("mutex is LOCKED\n");
+                }
+                else{
+                    mutex_lock(&info->mem_mutex);
+                    receive(info,data,data->header.size);
+                    mutex_unlock(&info->mem_mutex);
+
+                }
+                    
+                
+
             }
             else  LOG("CRC ERROR %x,%x len=%d\n",data->header.crc,Crc32(data->data,data->header.size),data->header.size);
 
@@ -281,7 +293,7 @@ static int hook_func( struct sk_buff *skb,
         
 
     kfree_skb(skb);
-    preempt_enable();
+    //
 
     return NF_DROP;
 }
