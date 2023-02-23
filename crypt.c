@@ -72,7 +72,7 @@ void encrypt(char* dest,const char* src,size_t  len)
         }
     }
     else
-        memcpy(dest,src,len);
+        copy_to_user(dest,src,len);
 
 }
 
@@ -89,6 +89,6 @@ void decrypt(char* dest,const char* src,size_t  len)
         }
     }
     else
-        memcpy(dest,src,len);
+        copy_to_user(dest,src,len);
 
 }

@@ -149,7 +149,7 @@ ssize_t complete_write(struct file *filp,const char __user *buf,size_t count,lof
 		return -EFAULT;
 	}
     
-    memcpy(info->data,procfs_buffer,count-1);
+    copy_to_user(info->data,procfs_buffer,count-1);
     
     //memcpy(info->data, "Hello from kernel this is file: ", 32);
 
@@ -281,12 +281,12 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
             dest=(char*)&Data.data;
             if( unlikely(offsetinpage+Data.width>PAGE_SIZE))//we crossed the boundaries
             {
-                memcpy(dest, &info->data[block][offsetinpage],PAGE_SIZE-offsetinpage);
-                memcpy(dest+PAGE_SIZE-offsetinpage, &info->data[block+1][0],Data.width+offsetinpage-PAGE_SIZE);
+                copy_to_user(dest, &info->data[block][offsetinpage],PAGE_SIZE-offsetinpage);
+                copy_to_user(dest+PAGE_SIZE-offsetinpage, &info->data[block+1][0],Data.width+offsetinpage-PAGE_SIZE);
 
             }
             else
-                memcpy(dest, &info->data[block][offsetinpage],Data.width);
+                copy_to_user(dest, &info->data[block][offsetinpage],Data.width);
            	
 
 
