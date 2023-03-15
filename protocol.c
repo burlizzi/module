@@ -38,8 +38,8 @@ int transmitPage(struct mmap_info* info,unsigned int offset   )
     //LOG("------------------------->>>>packet sent %d\n",offset);
     size_t i;
     int len=PAGE_SIZE;
-    unsigned char* A=info->data[offset*PAGE_SIZE];
-    unsigned char* B=info->mirror[offset*PAGE_SIZE];
+    unsigned char* A=info->data[offset/PAGE_SIZE];
+    unsigned char* B=info->mirror[offset/PAGE_SIZE];
     len=memcmp1(A,B,PAGE_SIZE);
     memcpy(B,A,PAGE_SIZE);
     for (i = 0; i < PAGE_SIZE/CHUNK+1 && len>0; i++)
@@ -97,9 +97,17 @@ int receive(struct mmap_info* info,struct net_rfm* rec,size_t len)
             int offsetinpage=rec->header.offset % PAGE_SIZE;
             decrypt(info->data[rec->header.offset/PAGE_SIZE]+(offsetinpage),rec->data,PAGE_SIZE-offsetinpage);
             decrypt(info->data[rec->header.offset/PAGE_SIZE+1]+(offsetinpage),rec->data,len+offsetinpage-PAGE_SIZE);
+
+            decrypt(info->mirror[rec->header.offset/PAGE_SIZE]+(offsetinpage),rec->data,PAGE_SIZE-offsetinpage);
+            decrypt(info->mirror[rec->header.offset/PAGE_SIZE+1]+(offsetinpage),rec->data,len+offsetinpage-PAGE_SIZE);
         }
         else
+        {
             decrypt(info->data[rec->header.offset/PAGE_SIZE]+(rec->header.offset % PAGE_SIZE),rec->data,len);
+            decrypt(info->mirror[rec->header.offset/PAGE_SIZE]+(rec->header.offset % PAGE_SIZE),rec->data,len);
+        }
+
+
         break;
     
     default:
