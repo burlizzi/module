@@ -59,7 +59,7 @@ module_param(debug, bool,S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 int blocks=MAP_SIZE/PAGE_SIZE/PAGES_PER_BLOCK;
 
 //char** blocks_array=NULL;
-short* dirt_pages;
+//short* dirt_pages;
 //short* current_dirt;
 
 static int notify_param(const char *val, const struct kernel_param *kp)
@@ -187,7 +187,7 @@ int mmap_open(struct inode *inode, struct file *filp)
 	thread1 = kthread_create(fb_deferred_io_work,info,"thread");
     if((thread1))
         {
-        LOG(KERN_INFO "in if");
+        LOG(KERN_INFO "in if\n");
         wake_up_process(thread1);
         }
 
@@ -201,10 +201,10 @@ int mmap_open(struct inode *inode, struct file *filp)
 void mmap_close(struct vm_area_struct *vma)
 {
 	struct page* page;
-	short *index;
+	int32_t *index;
 	struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
 	LOG("mmap_close %d %s\n",info->reference,info->name);
-	for ( index = dirt_pages; *index>=0  ; index++)
+	for ( index = info->dirt_pages; *index>=0  ; index++)
 	{
 		page=virt_to_page(info->data[*index]);
 		page->mapping = NULL;
@@ -257,12 +257,13 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	{
 		LOG("allocate page flags:%x chunk:%d \n",vmf->flags,block);
 		info->data[block]=(char *)__get_free_pages(GFP_KERNEL|GFP_ATOMIC, PAGES_ORDER);
+		info->mirror[block]=(char *)__get_free_pages(GFP_KERNEL|GFP_ATOMIC, PAGES_ORDER);
 		//info->data[block]=(char *)__get_free_pages(GFP_KERNEL| GFP_DMA | __GFP_NOWARN |__GFP_NORETRY, PAGES_ORDER);
 		memset(info->data[block],0,PAGE_SIZE<<PAGES_ORDER);
 	}
 	else 
 	{
-		LOG("recycle page flags:%x chunk:%d offset:%lx \n",vmf->flags,block,offset);
+		//LOG("recycle page flags:%x chunk:%d offset:%lx \n",vmf->flags,block,offset);
 	}
 
 	page = virt_to_page(info->data[block]+offset);
@@ -286,7 +287,7 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	page->index = vmf->pgoff % PAGES_PER_BLOCK;
 
 
-	LOG("page:%p\n",page);
+	//LOG("page:%p\n",page);
 
 	//#define PAGE_MAPPING_MOVABLE 0x2
 	//page->mapping = (long int)page->mapping | PAGE_MAPPING_MOVABLE;
@@ -305,17 +306,19 @@ static int fb_deferred_io_work(void* ptr)
 {
 	struct mmap_info* info=ptr;
 	struct page* page;
-	short *index;
+	int32_t *index;
 
 
 	while (info->reference)
 	{
 		mutex_lock(&etx_mutex);
 		mutex_lock(&mem_mutex);
-		
-		for ( index = dirt_pages; *index>=0  ; index++)
+		//LOG("XXXX %p\n",info->dirt_pages);
+		//LOG("XXXX %d\n",*info->dirt_pages);
+		for ( index = info->dirt_pages; *index>=0  ; index++)
 		{
 			
+			//LOG("YYYY %p %d\n",info->data[*index],*index);
 
 
 			page=virt_to_page(info->data[*index]);
@@ -374,31 +377,33 @@ struct vm_area_struct *vma=vmf->vma;
 int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 {
 #endif
-	short *index;
+	int32_t *index;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,10,0))	
 	int myoff=((long unsigned int)vmf->address-vma->vm_start)/PAGE_SIZE/PAGES_PER_BLOCK;
 #else
-	int myoff=((long unsigned int)vmf->virtual_address-vma->vm_start)/PAGE_SIZE/PAGES_PER_BLOCK;
+	unsigned int myoff=((long unsigned int)vmf->virtual_address-vma->vm_start)/PAGE_SIZE/PAGES_PER_BLOCK;
 #endif
-	//struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
+	struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
 	lock_page(vmf->page);
 	
 	//info->page=vmf->page;
 	//info->x = myoff;
  	
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0))	
-	LOG("page_mkwrite flags:%x offset:%ld pgoff:%ld page:%p\n",vmf->flags,vmf->address-vma->vm_start,vmf->pgoff,vmf->page);
+	//LOG("page_mkwrite flags:%x offset:%ld pgoff:%ld page:%p\n",vmf->flags,vmf->address-vma->vm_start,vmf->pgoff,vmf->page);
 #else
-	LOG("page_mkwrite flags:%x pgoff:%d page:%p\n",vmf->flags,myoff,vmf->page);
+	//LOG("page_mkwrite flags:%x pgoff:%d page:%p\n",vmf->flags,myoff,vmf->page);
 #endif
-	for ( index = dirt_pages; *index>=0  && myoff!=*index ; index++)
+	// let's see if it's already there
+	for (index = info->dirt_pages; *index >=0  && myoff!=*index ; index++)
 	{
-		if (index-dirt_pages>blocks)
+		if (index-info->dirt_pages>blocks)
 		{
 			return VM_FAULT_SIGBUS;
 		}
 	}
 	*index=myoff;
+
 	//LOG("unlocking \n");
 	mutex_unlock(&etx_mutex);
 	//schedule_delayed_work(&info->deferred_work, 1);
@@ -562,8 +567,6 @@ int mmap_ops_init(void)
 	//blocks_array=kmalloc(blocks*sizeof(char*), GFP_KERNEL);
 	//memset(blocks_array,0,blocks*sizeof(char*));
 
-	dirt_pages=kmalloc(size/PAGE_SIZE*sizeof(short), GFP_KERNEL);
-	memset(dirt_pages,-1,size/PAGE_SIZE*sizeof(short));
 
 	//info = kmalloc(sizeof(struct mmap_info), GFP_KERNEL);
 	

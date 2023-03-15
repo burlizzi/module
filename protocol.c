@@ -14,13 +14,35 @@ extern int pktsize;
 
 extern struct mutex mem_mutex; 
 
+inline int
+memcmp1 (const void *__s1, const void *__s2, size_t __n)
+{
+  register unsigned long int __d0, __d1;
+  register unsigned int __d2;
+  __asm__ __volatile__
+    ("std\n\t"
+     "repe; cmpsb\n\t"
+     "cld\n\t"
+     : "=&S" (__d0), "=&D" (__d1), "=&c" (__d2)
+     : "0" (__s1 + __n -1), "1" (__s2 + __n -1), "2" (__n+1),
+       "m" ( *(struct { __extension__ char __x[__n]; } *)__s1),
+       "m" ( *(struct { __extension__ char __x[__n]; } *)__s2)
+     : "cc");
 
-int transmitPage(struct mmap_info* info,unsigned int offset)
+  return __d2;
+}
+
+
+int transmitPage(struct mmap_info* info,unsigned int offset   )
 {
     //LOG("------------------------->>>>packet sent %d\n",offset);
     size_t i;
-    size_t len=PAGE_SIZE;
-    for (i = 0; i < PAGE_SIZE/CHUNK+1; i++)
+    int len=PAGE_SIZE;
+    unsigned char* A=info->data[offset*PAGE_SIZE];
+    unsigned char* B=info->mirror[offset*PAGE_SIZE];
+    len=memcmp1(A,B,PAGE_SIZE);
+    memcpy(B,A,PAGE_SIZE);
+    for (i = 0; i < PAGE_SIZE/CHUNK+1 && len>0; i++)
     {
         sendpacket(info,offset*PAGE_SIZE+i*CHUNK,len>CHUNK?CHUNK:len,VRFM_MEM_SEND);
         len-=CHUNK;

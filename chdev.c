@@ -149,7 +149,7 @@ ssize_t complete_write(struct file *filp,const char __user *buf,size_t count,lof
 		return -EFAULT;
 	}
     
-    copy_to_user(info->data,procfs_buffer,count-1);
+    memcpy(info->data,procfs_buffer,count-1);
     
     //memcpy(info->data, "Hello from kernel this is file: ", 32);
 
@@ -281,12 +281,12 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
             dest=(char*)&Data.data;
             if( unlikely(offsetinpage+Data.width>PAGE_SIZE))//we crossed the boundaries
             {
-                copy_to_user(dest, &info->data[block][offsetinpage],PAGE_SIZE-offsetinpage);
-                copy_to_user(dest+PAGE_SIZE-offsetinpage, &info->data[block+1][0],Data.width+offsetinpage-PAGE_SIZE);
+                memcpy(dest, &info->data[block][offsetinpage],PAGE_SIZE-offsetinpage);
+                memcpy(dest+PAGE_SIZE-offsetinpage, &info->data[block+1][0],Data.width+offsetinpage-PAGE_SIZE);
 
             }
             else
-                copy_to_user(dest, &info->data[block][offsetinpage],Data.width);
+                memcpy(dest, &info->data[block][offsetinpage],Data.width);
            	
 
 
@@ -600,7 +600,12 @@ int chdev_init(void)
         LOG("device %s\n",device);
         infos[rfm_instances]=info=kmalloc(sizeof(struct mmap_info), GFP_KERNEL);
        	info->data = kmalloc(blocks*sizeof(char*), GFP_KERNEL);
+       	info->mirror = kmalloc(blocks*sizeof(char*), GFP_KERNEL);
+	    info->dirt_pages=kmalloc(size/PAGE_SIZE*sizeof(*(info->dirt_pages)), GFP_KERNEL);
+	    memset(info->dirt_pages,-1,size/PAGE_SIZE*sizeof(short));
+
 	    memset(info->data,0,blocks*sizeof(char*));
+	    memset(info->mirror,0,blocks*sizeof(char*));
     	info->reference = 0;
         info->index = rfm_instances;
 

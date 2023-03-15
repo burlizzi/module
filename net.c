@@ -139,7 +139,7 @@ int sendpacket (struct mmap_info* info,unsigned int offset,unsigned int length,e
 
     //if(length<50)        length=50;
 
-    if(length>pktsize)
+    if(unlikely(length>pktsize))
     {
         LOG("vrfm: too big of a packet\n");
         return -1;
@@ -147,7 +147,7 @@ int sendpacket (struct mmap_info* info,unsigned int offset,unsigned int length,e
     
     
 
-    if(length && !info->data[offset/PAGE_SIZE])
+    if(unlikely(length && !info->data[offset/PAGE_SIZE]))
     {
         LOG("vrfm: blocks_array %lu not allocated!!\n",offset/PAGE_SIZE);
         return -1;
@@ -161,7 +161,7 @@ int sendpacket (struct mmap_info* info,unsigned int offset,unsigned int length,e
 
     
     skbt =alloc_skb(ETH_HLEN+sizeof(struct rfm_header)+length,GFP_KERNEL);      
-    if (!skbt)
+    if (unlikely(!skbt))
     {
         LOG("vrfm: cannot allocate alloc_skb!!\n");
         return -1;
@@ -171,7 +171,7 @@ int sendpacket (struct mmap_info* info,unsigned int offset,unsigned int length,e
     skb_reset_mac_header(skbt);
     
     eth = (struct net_rfm*) skb_push(skbt, sizeof(struct rfm_header)+length);
-    if (!eth)
+    if (unlikely(!eth))
     {
         LOG("vrfm: cannot allocate skb_push!!\n");
         return -1;

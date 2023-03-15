@@ -10,11 +10,9 @@ struct mmap_info {
 	//struct delayed_work deferred_work;
 	char name[100];
 	char **data;
+	char **mirror;
 	int reference;
-	//struct file *lower_file;
-	//const struct vm_operations_struct *lower_vm_ops;	
-	//int delay;
-	//struct page* page;
+	int32_t* dirt_pages;
 	int index;
 };
 //extern char** blocks_array;
