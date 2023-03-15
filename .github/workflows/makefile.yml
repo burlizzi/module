@@ -22,11 +22,11 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - run: |
-          if [[ ${{matrix.vector.image}} == *"suse"* ]]; then
+          if [ ${{matrix.vector.image}} == *"suse"* ]; then
             zypper -n install make gcc kernel-default-devel tar
-          elif [[ ${{matrix.vector.image}} == *"ubuntu"* ]]; then
+          elif [ ${{matrix.vector.image}} == *"ubuntu"* ]; then
             apt update && apt search linux-headers- && apt install -y make gcc kernel-default-devel linux-headers-generic
-          elif [[ ${{matrix.vector.image}} == *"debian"* ]]; then
+          elif [ ${{matrix.vector.image}} == *"debian"* ]; then
             apt update && apt search linux-headers- && apt install -y make gcc kernel-default-devel linux-headers-amd64
           fi       
       - run: |
