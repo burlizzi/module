@@ -24,13 +24,13 @@ jobs:
       - run: |
           case "${{matrix.vector.image}}" in
             *"suse"*)
-              zypper -n install make gcc kernel-default-devel tar
+              zypper -n install make gcc tar
               ;;
             *"ubuntu"*)
-              apt update && apt search linux-headers- && apt install -y make gcc kernel-default-devel linux-headers-generic
+              apt update && apt install -y make gcc  linux-headers-generic
               ;;
             *"debian"*)
-              apt update && apt search linux-headers- && apt install -y make gcc kernel-default-devel linux-headers-amd64
+              apt update && apt install -y make gcc  linux-headers-amd64
               ;;
           esac       
       - run: |
