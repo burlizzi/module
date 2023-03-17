@@ -14,8 +14,26 @@ extern int pktsize;
 
 extern struct mutex mem_mutex; 
 
+
 inline int
-memcmp1 (const void *__s1, const void *__s2, size_t __n)
+memcmpf (const void *__s1, const void *__s2, size_t __n)
+{
+  register unsigned long int __d0, __d1;
+  register unsigned int __d2;
+  __asm__ __volatile__
+    ("cld\n\t"
+     "repe; cmpsb\n\t"
+     : "=&S" (__d0), "=&D" (__d1), "=&c" (__d2)
+     : "0" (__s1), "1" (__s2), "2" (__n),
+       "m" ( *(struct { __extension__ char __x[__n]; } *)__s1),
+       "m" ( *(struct { __extension__ char __x[__n]; } *)__s2)
+     : "cc");
+
+  return __n-__d2-1;
+}
+
+inline int
+memcmpr (const void *__s1, const void *__s2, size_t __n)
 {
   register unsigned long int __d0, __d1;
   register unsigned int __d2;
@@ -29,22 +47,27 @@ memcmp1 (const void *__s1, const void *__s2, size_t __n)
        "m" ( *(struct { __extension__ char __x[__n]; } *)__s2)
      : "cc");
 
-  return __d2;
+  return __d2-1;
 }
 
 
 int transmitPage(struct mmap_info* info,unsigned int offset   )
 {
-    //LOG("------------------------->>>>packet sent %d\n",offset);
     size_t i;
-    int len=PAGE_SIZE;
+    int end=PAGE_SIZE;
+    int start=0;
+    
     unsigned char* A=info->data[offset/PAGE_SIZE];
     unsigned char* B=info->mirror[offset/PAGE_SIZE];
-    len=memcmp1(A,B,PAGE_SIZE);
-    memcpy(B,A,PAGE_SIZE);
-    for (i = 0; i < PAGE_SIZE/CHUNK+1 && len>0; i++)
+    start=memcmpf(A,B,PAGE_SIZE);
+    end=memcmpr(A,B,PAGE_SIZE);
+    int len=end-start;
+    LOG("------------------------->>>>packet start %d len %d\n",start,len);
+    memcpy(B+start,A+start,len);
+    for (i = start/CHUNK; i < PAGE_SIZE/CHUNK+1 && len>0; i++)
     {
-        sendpacket(info,offset*PAGE_SIZE+i*CHUNK,len>CHUNK?CHUNK:len,VRFM_MEM_SEND);
+        LOG("------------------------->>>>packet sent %d %d %d\n",offset,offset+i*CHUNK,len>CHUNK?CHUNK:len);
+        sendpacket(info,start+offset+i*CHUNK,len>CHUNK?CHUNK:len,VRFM_MEM_SEND);
         len-=CHUNK;
     }
     return false;
@@ -95,11 +118,12 @@ int receive(struct mmap_info* info,struct net_rfm* rec,size_t len)
         if(unlikely(rec->header.offset+len>PAGE_SIZE))//we crossed the boundaries
         {
             int offsetinpage=rec->header.offset % PAGE_SIZE;
+            LOG("received trans page update p:%d offset:%d len:%d",rec->header.offset/PAGE_SIZE,offsetinpage,len);
             decrypt(info->data[rec->header.offset/PAGE_SIZE]+(offsetinpage),rec->data,PAGE_SIZE-offsetinpage);
-            decrypt(info->data[rec->header.offset/PAGE_SIZE+1]+(offsetinpage),rec->data,len+offsetinpage-PAGE_SIZE);
+            decrypt(info->data[rec->header.offset/PAGE_SIZE+1],rec->data,len+offsetinpage-PAGE_SIZE);
 
             decrypt(info->mirror[rec->header.offset/PAGE_SIZE]+(offsetinpage),rec->data,PAGE_SIZE-offsetinpage);
-            decrypt(info->mirror[rec->header.offset/PAGE_SIZE+1]+(offsetinpage),rec->data,len+offsetinpage-PAGE_SIZE);
+            decrypt(info->mirror[rec->header.offset/PAGE_SIZE+1],rec->data,len+offsetinpage-PAGE_SIZE);
         }
         else
         {

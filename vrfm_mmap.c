@@ -321,10 +321,10 @@ static int fb_deferred_io_work(void* ptr)
 			//LOG("YYYY %p %d\n",info->data[*index],*index);
 
 
-			page=virt_to_page(info->data[*index]);
+			page=virt_to_page(info->data[*index/PAGE_SIZE/PAGES_PER_BLOCK]);
 			lock_page(page);
 			//LOG("lock\n");
-			if (!info->data[*index])
+			if (!info->data[*index/PAGE_SIZE/PAGES_PER_BLOCK])
 			{
 				LOG("ERROR %p %d\n",info->data[*index],*index);
 				continue;
@@ -379,9 +379,9 @@ int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 #endif
 	int32_t *index;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,10,0))	
-	int myoff=((long unsigned int)vmf->address-vma->vm_start)/PAGE_SIZE/PAGES_PER_BLOCK;
+	int myoff=((long unsigned int)vmf->address-vma->vm_start+vmf->pgoff);
 #else
-	unsigned int myoff=((long unsigned int)vmf->virtual_address-vma->vm_start)/PAGE_SIZE/PAGES_PER_BLOCK;
+	unsigned int myoff=((long unsigned int)vmf->virtual_address-vma->vm_start+vmf->pgoff);
 #endif
 	struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
 	lock_page(vmf->page);
@@ -390,9 +390,9 @@ int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 	//info->x = myoff;
  	
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0))	
-	//LOG("page_mkwrite flags:%x offset:%ld pgoff:%ld page:%p\n",vmf->flags,vmf->address-vma->vm_start,vmf->pgoff,vmf->page);
+	LOG("page_mkwrite flags:%x offset:%ld pgoff:%ld page:%p\n",vmf->flags,vmf->address-vma->vm_start,vmf->pgoff,vmf->page);
 #else
-	//LOG("page_mkwrite flags:%x pgoff:%d page:%p\n",vmf->flags,myoff,vmf->page);
+	LOG("page_mkwrite flags:%x pgoff:%d page:%p\n",vmf->flags,myoff,vmf->page);
 #endif
 	// let's see if it's already there
 	for (index = info->dirt_pages; *index >=0  && myoff!=*index ; index++)
