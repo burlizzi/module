@@ -14,8 +14,9 @@
             "cwd": "${workspaceRoot}",
             //"miDebuggerPath": "/usr/local/bin/gdb",
             //"miDebuggerPath": "${workspaceFolder}/vmd",
+            //{"text": "add-symbol-file C:\\\\Users\\\\bulu101\\\\workspace\\\\linux-4.1.39-56\\\\..\\\\module\\\\bin\\\\vrfm.ko ${input:variableID}"}
             "MIMode": "gdb",
-            "miDebuggerServerAddress": "localhost:8864"
+            "miDebuggerServerAddress": "localhost:1234"
         },
        {
         "name": "(gdb) Associa",
@@ -57,5 +58,13 @@
                }
            ]
        }
-    ]
+    ],
+    "inputs": [
+        {
+            "id": "variableID",
+            "type":"command",
+            "command": "shellCommand.execute",
+            "args":{"command": "ssh 192.168.56.101 echo \"`sudo cat /sys/module/vrfm/sections/.text` -s .data ` sudo cat /sys/module/vrfm/sections/.data` -s .bss `sudo cat /sys/module/vrfm/sections/.bss`\""}
+        }
+        ]
 }
