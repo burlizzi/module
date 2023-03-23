@@ -60,7 +60,7 @@ int transmitPage(struct mmap_info* info,unsigned int offset   )
     unsigned char* A=info->data[offset/PAGE_SIZE];
     unsigned char* B=info->mirror[offset/PAGE_SIZE];
     start=memcmpf(A,B,PAGE_SIZE);
-    end=memcmpr(A,B,PAGE_SIZE);
+    end=memcmpr(A,B,PAGE_SIZE)+1;
     int len=end-start;
     LOG("------------------------->>>>packet start %d len %d\n",start,len);
     memcpy(B+start,A+start,len);
@@ -89,6 +89,13 @@ int receive(struct mmap_info* info,struct net_rfm* rec,size_t len)
 	{
 		LOG("allocate page chunk:%lu \n",rec->header.offset/PAGE_SIZE);
 		info->data[rec->header.offset/PAGE_SIZE]=(char *)__get_free_pages(GFP_KERNEL, PAGES_ORDER);
+		
+	}
+
+    if (!info->mirror[rec->header.offset/PAGE_SIZE])
+	{
+		LOG("allocate page chunk:%lu \n",rec->header.offset/PAGE_SIZE);
+		info->mirror[rec->header.offset/PAGE_SIZE]=(char *)__get_free_pages(GFP_KERNEL, PAGES_ORDER);
 		
 	}
 
