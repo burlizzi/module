@@ -62,6 +62,13 @@ int transmitPage(struct mmap_info* info,unsigned int offset   )
     start=memcmpf(A,B,PAGE_SIZE);
     end=memcmpr(A,B,PAGE_SIZE)+1;
     int len=end-start;
+
+    if (len<=0)
+    {
+	    LOG("------------------------->>>>len<0 %d len %d\n",start,len);
+	    return false;
+    }
+	
     LOG("------------------------->>>>packet start %d len %d\n",start,len);
     memcpy(B+start,A+start,len);
     for (i = start/CHUNK; i < PAGE_SIZE/CHUNK+1 && len>0; i++)
