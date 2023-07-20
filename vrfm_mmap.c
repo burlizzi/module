@@ -131,8 +131,10 @@ module_param_cb(size, &size_op_ops, &size, S_IRUGO|S_IWUSR);
 
 static int fb_deferred_io_set_page_dirty(struct page *page)
 {
+	LOG("fb_deferred_io_set_page_dirty :%p",page);
 	if (!PageDirty(page))
 		SetPageDirty(page);
+	LOG("done");
 	return 0;
 }
 
@@ -247,7 +249,7 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 		return VM_FAULT_SIGBUS;
 	}
 
-	if (vmf->pgoff>=size<<PAGES_ORDER)
+	if (vmf->pgoff>=(size<<PAGES_ORDER))
 	{
 		LOG("mmap_fault overflow\n");
 		return VM_FAULT_SIGBUS;
@@ -255,7 +257,7 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	
 	if (!info->data[block])
 	{
-		LOG("allocate page flags:%x chunk:%d \n",vmf->flags,block);
+		LOG("allocate page flags:%x chunk:%d address:%lx\n",vmf->flags,block,vmf->address);
 		info->data[block]=(char *)__get_free_pages(GFP_KERNEL|GFP_ATOMIC, PAGES_ORDER);
 		info->mirror[block]=(char *)__get_free_pages(GFP_KERNEL|GFP_ATOMIC, PAGES_ORDER);
 		//info->data[block]=(char *)__get_free_pages(GFP_KERNEL| GFP_DMA | __GFP_NOWARN |__GFP_NORETRY, PAGES_ORDER);
@@ -317,24 +319,19 @@ static int fb_deferred_io_work(void* ptr)
 		//LOG("XXXX %d\n",*info->dirt_pages);
 		for ( index = info->dirt_pages; *index>=0  ; index++)
 		{
-			
-			//LOG("YYYY %p %d\n",info->data[*index],*index);
-
-
-			page=virt_to_page(info->data[*index/PAGE_SIZE/PAGES_PER_BLOCK]);
-			lock_page(page);
-			//LOG("lock\n");
-			if (!info->data[*index/PAGE_SIZE/PAGES_PER_BLOCK])
+			if (!info->data[*index])
 			{
 				LOG("ERROR %p %d\n",info->data[*index],*index);
 				continue;
 			}
+			page=virt_to_page(info->data[*index]);
+			lock_page(page);
 
 			
 			if (PageDirty(page))
 			{
 				ktime_t time1;
-				//LOG("dirty %d\n",*index);
+				LOG("dirty %d\n",*index);
 				time1=ktime_get();
 				
 				transmitPage(info,*index);
@@ -345,12 +342,11 @@ static int fb_deferred_io_work(void* ptr)
 				
 			}
 					
-			//LOG("unlock\n");
 			unlock_page(page);
 		}
 		mutex_unlock(&mem_mutex);
 		if(kthread_should_stop()) {
-			LOG(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> terminato\n");
+			LOG(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> done\n");
 			do_exit(0);
 		}
 
@@ -379,9 +375,9 @@ int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 #endif
 	int32_t *index;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,10,0))	
-	int myoff=((long unsigned int)vmf->address-vma->vm_start+vmf->pgoff);
+	int myoff=vmf->pgoff;
 #else
-	unsigned int myoff=((long unsigned int)vmf->virtual_address-vma->vm_start+vmf->pgoff);
+	unsigned int myoff=((long unsigned int)vmf->virtual_address-vma->vm_start+vmf->pgoff)/PAGE_SIZE;
 #endif
 	struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
 	lock_page(vmf->page);
@@ -395,14 +391,17 @@ int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 	LOG("page_mkwrite flags:%x pgoff:%d page:%p\n",vmf->flags,myoff,vmf->page);
 #endif
 	// let's see if it's already there
-	for (index = info->dirt_pages; *index >=0  && myoff!=*index ; index++)
+	for (index = info->dirt_pages; (*index >=0)  && (myoff!=*index) ; index++)
 	{
-		if (index-info->dirt_pages>blocks)
+		LOG("page_mkwrite flags:%x pgoff:%d page:%p\n",vmf->flags,myoff,vmf->page);
+		if ((index-info->dirt_pages)>blocks)
 		{
+			LOG("overflow\n");
 			return VM_FAULT_SIGBUS;
 		}
 	}
 	*index=myoff;
+	LOG("index=%d %d\n",*index,myoff);
 
 	//LOG("unlocking \n");
 	mutex_unlock(&etx_mutex);

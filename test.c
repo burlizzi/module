@@ -51,8 +51,8 @@ int main (int argc, char **argv)
         return -1;
     }
 
-    FILE* log=fopen("/dev/stdout","w");
-    //FILE* log=fopen("/dev/kmsg","w");
+    //FILE* log=fopen("/dev/stdout","w");
+    FILE* log=fopen("/dev/kmsg","w");
 
     //memcpy (address + 11, "*user*", 6);
     //printf ("Initial message: %s\n", address);
@@ -72,34 +72,7 @@ int main (int argc, char **argv)
     }
 
 
-    address[1]++;
-    while(1)
-    {
-     //   
-        //if (xx!=address[2])        printf ("%x,%x\n",address[1],address[2]);  
-        //xx=address[2];
-        clock_gettime(CLOCK_MONOTONIC, &time3);
-        if(address[1]==address[2] || diff(time1,time3).tv_sec>0)
-        {
-            clock_gettime(CLOCK_MONOTONIC, &time2);
-            if (address[1]==address[2])
-                fprintf (log,"ping round: %f ms\n", (float)(diff(time1,time2).tv_nsec)/1000000+(float)(diff(time1,time2).tv_sec)*1000);
-            else
-                fprintf (log,"ping failed: %f ms\n", (float)(diff(time1,time2).tv_nsec)/1000000+(float)(diff(time1,time2).tv_sec)*1000);
-            fflush(log);
-            usleep(10000);
-            
-            //fprintf (log,"x\n");  
-            fflush(log);
-            //fprintf (log,"y\n");  
-            fflush(log);
-            address[1]++;
-            clock_gettime(CLOCK_MONOTONIC, &time1);
-        }
-        //usleep(10);
-
-    }
-    return 0;
+  
 
 
     printf ("Changed message: %p %s\n", address, address);
@@ -135,10 +108,13 @@ int main (int argc, char **argv)
     fflush(log);
     //sleep(1);
     //sleep(1);
+    fprintf (log,"--------------------cross page----------------------------------\n");
+    fflush(log);
     memcpy (address + PAGE_SIZE*45-10, S("Hello from *user* this is file:"));
     //memcpy (address + 11, "*mio**", 6);
     sleep(1);
 
+    fprintf (log,"--------------------cross page again----------------------------------\n");
     memcpy (address + PAGE_SIZE*45-10, S("Hello from *again* this is file:"));
     printf ("Changed message: %s\n", address);
     //sleep(5);

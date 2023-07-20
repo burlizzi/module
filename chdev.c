@@ -597,12 +597,13 @@ int chdev_init(void)
     {
         struct mmap_info* info=NULL;
         devices[rfm_instances]=device;
-        LOG("device %s\n",device);
         infos[rfm_instances]=info=kmalloc(sizeof(struct mmap_info), GFP_KERNEL);
        	info->data = kmalloc(blocks*sizeof(char*), GFP_KERNEL);
        	info->mirror = kmalloc(blocks*sizeof(char*), GFP_KERNEL);
-	    info->dirt_pages=kmalloc(size/PAGE_SIZE*sizeof(*(info->dirt_pages)), GFP_KERNEL);
+	    //info->dirt_pages=kmalloc(size/PAGE_SIZE*sizeof(*(info->dirt_pages)), GFP_KERNEL);
 	    memset(info->dirt_pages,-1,size/PAGE_SIZE*sizeof(short));
+        strcpy(info->name,device);
+        LOG("device %s\n",info->name);
 
 	    memset(info->data,0,blocks*sizeof(char*));
 	    memset(info->mirror,0,blocks*sizeof(char*));

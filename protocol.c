@@ -14,14 +14,14 @@ extern int pktsize;
 
 extern struct mutex mem_mutex; 
 
-
-inline int
+#pragma GCC diagnostic ignored "-Wvla"
+ int
 memcmpf (const void *__s1, const void *__s2, size_t __n)
 {
   register unsigned long int __d0, __d1;
   register unsigned int __d2;
   __asm__ __volatile__
-    ("cld\n\t"
+    ("\n\t"
      "repe; cmpsb\n\t"
      : "=&S" (__d0), "=&D" (__d1), "=&c" (__d2)
      : "0" (__s1), "1" (__s2), "2" (__n),
@@ -32,7 +32,7 @@ memcmpf (const void *__s1, const void *__s2, size_t __n)
   return __n-__d2-1;
 }
 
-inline int
+ int
 memcmpr (const void *__s1, const void *__s2, size_t __n)
 {
   register unsigned long int __d0, __d1;
@@ -51,21 +51,45 @@ memcmpr (const void *__s1, const void *__s2, size_t __n)
 }
 
 
+
+void dump(char* A)
+{
+    size_t i;
+    size_t j;
+        for ( i = 0; i < 64; i++)
+        {
+            char string[64*3+2];
+            char* pointer=string;
+            for ( j = 0; j < 64; j++)
+            {
+                sprintf(pointer,"%02x ",A[i*64+j]);
+                pointer+=3;
+            }
+            string[64*3+1]=0;
+            LOG(KERN_ERR "%s\n",string);
+        }
+
+}
+
 int transmitPage(struct mmap_info* info,unsigned int offset   )
 {
     size_t i;
+    int len;
     int end=PAGE_SIZE;
     int start=0;
     
-    unsigned char* A=info->data[offset/PAGE_SIZE];
-    unsigned char* B=info->mirror[offset/PAGE_SIZE];
+    unsigned char* A=info->data[offset];
+    unsigned char* B=info->mirror[offset];
     start=memcmpf(A,B,PAGE_SIZE);
     end=memcmpr(A,B,PAGE_SIZE)+1;
-    int len=end-start;
+    len=end-start;
 
     if (len<=0)
     {
-	    LOG("------------------------->>>>len<0 %d len %d\n",start,len);
+	    LOG(KERN_ERR "len<0 %d len %d\n",start,len);
+        dump(A);
+	    LOG(KERN_ERR "len<0 %d len %d\n",start,len);
+        dump(B);
 	    return false;
     }
 	
@@ -73,8 +97,8 @@ int transmitPage(struct mmap_info* info,unsigned int offset   )
     memcpy(B+start,A+start,len);
     for (i = start/CHUNK; i < PAGE_SIZE/CHUNK+1 && len>0; i++)
     {
-        LOG("------------------------->>>>packet sent %d %d %d\n",offset,offset+i*CHUNK,len>CHUNK?CHUNK:len);
-        sendpacket(info,start+offset+i*CHUNK,len>CHUNK?CHUNK:len,VRFM_MEM_SEND);
+        LOG("------------------------->>>>packet sent %d %lu %lu\n",offset,offset+start+i*CHUNK,len>CHUNK?CHUNK:len);
+        sendpacket(info,offset*PAGE_SIZE+start+i*CHUNK,len>CHUNK?CHUNK:len,VRFM_MEM_SEND);
         len-=CHUNK;
     }
     return false;
@@ -132,7 +156,7 @@ int receive(struct mmap_info* info,struct net_rfm* rec,size_t len)
         if(unlikely(rec->header.offset+len>PAGE_SIZE))//we crossed the boundaries
         {
             int offsetinpage=rec->header.offset % PAGE_SIZE;
-            LOG("received trans page update p:%d offset:%d len:%d",rec->header.offset/PAGE_SIZE,offsetinpage,len);
+            LOG("received trans page update p:%lu offset:%d len:%lu",rec->header.offset/PAGE_SIZE,offsetinpage,len);
             decrypt(info->data[rec->header.offset/PAGE_SIZE]+(offsetinpage),rec->data,PAGE_SIZE-offsetinpage);
             decrypt(info->data[rec->header.offset/PAGE_SIZE+1],rec->data,len+offsetinpage-PAGE_SIZE);
 

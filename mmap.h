@@ -12,7 +12,7 @@ struct mmap_info {
 	char **data;
 	char **mirror;
 	int reference;
-	int32_t* dirt_pages;
+	int32_t dirt_pages[MAP_SIZE/PAGE_SIZE];
 	int index;
 };
 //extern char** blocks_array;
