@@ -1,6 +1,6 @@
 
 MODULE_NAME ?= vrfm
-MAP_SIZE ?= 67108864
+MAP_SIZE ?= 134217728
 CC=/usr/bin/cc
 
 BUILD_DIR = /lib/modules/$(shell uname -r)/build
@@ -10,7 +10,7 @@ BUILD_DIR_MAKEFILE ?= $(PWD)/bin/Makefile
 FLAGS = -O3 
 #FLAGS = -O0 -DDEBUG -g
 
-all: module sync
+all: module sync 
 
 debug: FLAGS = -O0 -DDEBUG -g
 debug: all bin/test bin/test1
@@ -60,7 +60,7 @@ clean:
 
 install: all
 	KCPPFLAGS=" -DMODULE_NAME=$(MODULE_NAME) -DMAP_SIZE=$(MAP_SIZE)" make -C $(BUILD_DIR)   M=$(MOD_OUTPUT_DIR) src=$(PWD) CC=${CC} modules
-	@sudo insmod $(MOD_OUTPUT_DIR)/$(MODULE_NAME).ko netdevice=eth0 debug=1 rfmdevice=rfm2g0
+	@sudo insmod $(MOD_OUTPUT_DIR)/$(MODULE_NAME).ko netdevice=lo debug=0 rfmdevice=rfm2g0
 	
 
 uninstall:

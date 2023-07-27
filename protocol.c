@@ -52,23 +52,31 @@ memcmpr (const void *__s1, const void *__s2, size_t __n)
 
 
 
-void dump(char* A)
+void dump(unsigned char* A,int offset)
 {
     size_t i;
     size_t j;
+    bool previous=1;
+    LOG(KERN_INFO "%d>>>>",offset);
         for ( i = 0; i < 64; i++)
         {
             char string[64*3+2];
             char* pointer=string;
+            unsigned char any=0;
             for ( j = 0; j < 64; j++)
             {
                 sprintf(pointer,"%02x ",A[i*64+j]);
                 pointer+=3;
+                any|=A[i*64+j];
             }
             string[64*3+1]=0;
-            LOG(KERN_ERR "%s\n",string);
+            if(any || previous)
+            LOG(any?KERN_INFO "%s\n":"...",string);
+            previous=any;
+
         }
 
+    LOG(KERN_INFO "%d<<<<",offset);
 }
 
 int transmitPage(struct mmap_info* info,unsigned int offset   )
@@ -84,18 +92,20 @@ int transmitPage(struct mmap_info* info,unsigned int offset   )
     end=memcmpr(A,B,PAGE_SIZE)+1;
     len=end-start;
 
-    if (len<=0)
+    if (len<=0) 
     {
 	    LOG(KERN_ERR "len<0 %d len %d\n",start,len);
-        dump(A);
-	    LOG(KERN_ERR "len<0 %d len %d\n",start,len);
-        dump(B);
 	    return false;
     }
+        if (debug)
+        {
+            dump(A,offset);
+            dump(B,offset);
+        }
 	
     LOG("------------------------->>>>packet start %d len %d\n",start,len);
     memcpy(B+start,A+start,len);
-    for (i = start/CHUNK; i < PAGE_SIZE/CHUNK+1 && len>0; i++)
+    for (i = 0; i < (PAGE_SIZE-start)/CHUNK+1 && len>0; i++)
     {
         LOG("------------------------->>>>packet sent %d %lu %lu\n",offset,offset+start+i*CHUNK,len>CHUNK?CHUNK:len);
         sendpacket(info,offset*PAGE_SIZE+start+i*CHUNK,len>CHUNK?CHUNK:len,VRFM_MEM_SEND);
@@ -119,14 +129,15 @@ int receive(struct mmap_info* info,struct net_rfm* rec,size_t len)
     if (!info->data[rec->header.offset/PAGE_SIZE])
 	{
 		LOG("allocate page chunk:%lu \n",rec->header.offset/PAGE_SIZE);
-		info->data[rec->header.offset/PAGE_SIZE]=(char *)__get_free_pages(GFP_KERNEL, PAGES_ORDER);
+		info->data[rec->header.offset/PAGE_SIZE]=(char *)get_zeroed_page(GFP_KERNEL);
+        
 		
 	}
 
     if (!info->mirror[rec->header.offset/PAGE_SIZE])
 	{
 		LOG("allocate page chunk:%lu \n",rec->header.offset/PAGE_SIZE);
-		info->mirror[rec->header.offset/PAGE_SIZE]=(char *)__get_free_pages(GFP_KERNEL, PAGES_ORDER);
+		info->mirror[rec->header.offset/PAGE_SIZE]=(char *)get_zeroed_page(GFP_KERNEL);
 		
 	}
 

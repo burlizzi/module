@@ -141,7 +141,7 @@ int sendpacket (struct mmap_info* info,unsigned int offset,unsigned int length,e
 
     if(unlikely(length>pktsize))
     {
-        LOG("vrfm: too big of a packet\n");
+        LOG(KERN_ERR "vrfm: too big of a packet l:%u size:%u\n",length,pktsize);
         return -1;
     }
     
@@ -149,7 +149,7 @@ int sendpacket (struct mmap_info* info,unsigned int offset,unsigned int length,e
 
     if(unlikely(length && !info->data[offset/PAGE_SIZE]))
     {
-        LOG(KERN_ERR "vrfm: blocks_array %lu not allocated!!\n",offset/PAGE_SIZE);
+        LOG(KERN_ERR "vrfm: blocks_array %lu not allocated!! offset:%u len:%u\n",offset/PAGE_SIZE,offset,length);
         return -1;
     }
     /*if ((offset%PAGE_SIZE) + length>PAGE_SIZE)

@@ -189,6 +189,7 @@ void allocatedata(struct mmap_info * info, size_t offset, size_t length)
             memset(info->data[block],0,PAGE_SIZE<<PAGES_ORDER);
 #else
             info->data[block]=(char *)get_zeroed_page(GFP_KERNEL);
+            info->mirror[block]=(char *)get_zeroed_page(GFP_KERNEL);
 #endif            
         }
         else 
@@ -588,9 +589,7 @@ int chdev_init(void)
     struct class* pClass=classesArray[0];
 
     // Create /dev/DEVICE_NAME for this char dev
-    printk("a %s\n",rfmdevice);
     strcpy(save,rfmdevice);
-    printk("b %s \n",save);
     point=&save[0];
     rfm_instances=0;
     while ((device = strsep(&point, ","))) 
@@ -633,7 +632,6 @@ int chdev_init(void)
             return -1;
         }
 
-        printk("c %s\n",device);
         if (IS_ERR(pDev = device_create(pClass, NULL, devNo[rfm_instances], NULL, device))) {
             LOG(KERN_WARNING xstr(MODULE_NAME)".ko can't create device /dev/%s\n",device);
             class_destroy(pClass);
@@ -645,7 +643,6 @@ int chdev_init(void)
         rfm_instances++;
 
     }
-    printk("d\n");
 
     return 0;
 }

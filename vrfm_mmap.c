@@ -15,7 +15,7 @@
 #include <linux/moduleparam.h>
 #include <linux/dma-mapping.h>
 #include <asm/tlbflush.h>
-
+#include <linux/delay.h>
 
 
 #include <linux/init.h>
@@ -40,8 +40,32 @@
 //struct mmap_info *info = NULL;
 
 static struct task_struct *thread1;
-struct mutex etx_mutex; 
-struct mutex mem_mutex; 
+
+struct dmutex
+{
+	struct mutex m;
+	const char* prev;
+};
+
+
+
+
+void dmutex_init(struct dmutex* m){
+	mutex_init(&m->m);
+	m->prev="";
+}
+
+
+#define  dmutex_lock(X) \
+	{if(mutex_lock_interruptible(X.m))LOG(#X" INTERRUPT %s<->%s",(X)->prev,__func__);LOG(#X" LOCK %s<->%s",(X)->prev,__func__); (X)->prev=__func__;}
+
+
+#define  dmutex_unlock(X) \
+	{mutex_unlock(X.m);{LOG(#X" UNLOCK %s<|>%s",(X)->prev,__func__);(X)->prev=__func__+1;}}
+
+
+struct dmutex etx_mutex; 
+struct dmutex mem_mutex; 
 extern int rfm_instances;
 extern char* devices[MAX_RFM2G_DEVICES];  // Major and Minor device numbers combined into 32 bits
 extern struct mmap_info* infos[MAX_RFM2G_DEVICES];
@@ -52,6 +76,8 @@ int size = MAP_SIZE; // default
 bool debug = false;
 module_param(debug, bool,S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
 
+
+static int fb_deferred_io_work(void* info);
 
 
 
@@ -131,15 +157,42 @@ module_param_cb(size, &size_op_ops, &size, S_IRUGO|S_IWUSR);
 
 static int fb_deferred_io_set_page_dirty(struct page *page)
 {
+
+	//dmutex_lock(&mem_mutex);
 	LOG("fb_deferred_io_set_page_dirty :%p",page);
 	if (!PageDirty(page))
 		SetPageDirty(page);
+	dmutex_unlock(&etx_mutex);
+	//dmutex_unlock(&mem_mutex);
+	
 	LOG("done");
 	return 0;
 }
 
+static int test_write_end(struct file * file, struct address_space *mapping, loff_t pos, unsigned len, unsigned copied, struct page *page, void *fsdata)
+{
+	LOG("write_end :%p pos:%lld len:%d ",page,pos,len);
+	return 0;
+}
 
-static int fb_deferred_io_work(void* info);
+int write_begin(struct file *file, struct address_space *mapping,
+				   loff_t pos, unsigned len, unsigned flags,
+				struct page **page, void **fsdata)
+{
+	LOG("write_begin :%p pos:%lld len:%d ",page,pos,len);
+	return 0;
+}
+
+int writepage(struct page *page, struct writeback_control *wbc)
+{
+	LOG("writepage :%p ",page);
+	return 0;
+}
+
+void invalidatepage (struct page * page, unsigned int pos, unsigned int len)
+{
+	LOG("invalidatepage :%p pos:%u len:%d ",page,pos,len);
+}
 
 
 static const struct address_space_operations fb_deferred_io_aops = {
@@ -238,8 +291,8 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
     
 	unsigned long offset = ((vmf->pgoff % PAGES_PER_BLOCK) << PAGE_SHIFT);
 	int block=vmf->pgoff>>PAGES_ORDER;
-	//LOG("mmap_fault gfp_mask:%x pgoff:%ld flags=%x\n",vmf->gfp_mask,vmf->pgoff,vmf->flags);
-	mutex_lock(&mem_mutex);
+	LOG("mmap_fault gfp_mask:%x pgoff:%ld flags=%x\n",vmf->gfp_mask,vmf->pgoff,vmf->flags);
+	dmutex_lock(&mem_mutex);
 	
 
 	info = (struct mmap_info *)vma->vm_private_data;
@@ -258,17 +311,17 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	if (!info->data[block])
 	{
 		LOG("allocate page flags:%x chunk:%d address:%lx\n",vmf->flags,block,vmf->address);
-		info->data[block]=(char *)__get_free_pages(GFP_KERNEL|GFP_ATOMIC, PAGES_ORDER);
-		info->mirror[block]=(char *)__get_free_pages(GFP_KERNEL|GFP_ATOMIC, PAGES_ORDER);
+		info->data[block]=(char *)get_zeroed_page(GFP_KERNEL|GFP_ATOMIC);
+		info->mirror[block]=(char *)get_zeroed_page(GFP_KERNEL|GFP_ATOMIC);
 		//info->data[block]=(char *)__get_free_pages(GFP_KERNEL| GFP_DMA | __GFP_NOWARN |__GFP_NORETRY, PAGES_ORDER);
-		memset(info->data[block],0,PAGE_SIZE<<PAGES_ORDER);
+		//memset(info->data[block],0,PAGE_SIZE<<PAGES_ORDER);
 	}
 	else 
 	{
 		//LOG("recycle page flags:%x chunk:%d offset:%lx \n",vmf->flags,block,offset);
 	}
 
-	page = virt_to_page(info->data[block]+offset);
+	page = vmalloc_to_page(info->data[block]);
 
 	if (!page)
 	{
@@ -286,7 +339,7 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 
 	//set_memory_uc(vmf->virtual_address,1);
 
-	page->index = vmf->pgoff % PAGES_PER_BLOCK;
+	page->index = vmf->pgoff /*% PAGES_PER_BLOCK*/;
 
 
 	//LOG("page:%p\n",page);
@@ -297,7 +350,7 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	vmf->page = page;
 
 	lock_page(page);
-	mutex_unlock(&mem_mutex);
+	dmutex_unlock(&mem_mutex);
 	return VM_FAULT_LOCKED;
 }
 
@@ -313,21 +366,26 @@ static int fb_deferred_io_work(void* ptr)
 
 	while (info->reference)
 	{
-		mutex_lock(&etx_mutex);
-		mutex_lock(&mem_mutex);
+		LOG("/\n");
+		//if(!mutex_trylock(&etx_mutex)) schedule();
+		dmutex_lock(&etx_mutex);
+		LOG("-\n");
+		//dmutex_lock(&mem_mutex);
+		LOG("\\\n");
 		//LOG("XXXX %p\n",info->dirt_pages);
 		//LOG("XXXX %d\n",*info->dirt_pages);
 		for ( index = info->dirt_pages; *index>=0  ; index++)
 		{
 			if (!info->data[*index])
 			{
-				LOG("ERROR %p %d\n",info->data[*index],*index);
+				LOG(KERN_ERR "ERROR %p %d\n",info->data[*index],*index);
 				continue;
 			}
 			page=virt_to_page(info->data[*index]);
+			LOG("pre page %d\n",*index);
 			lock_page(page);
 
-			
+			LOG("page %d\n",*index);
 			if (PageDirty(page))
 			{
 				ktime_t time1;
@@ -341,19 +399,19 @@ static int fb_deferred_io_work(void* ptr)
 				ClearPageDirty(page);
 				
 			}
-					
+	
 			unlock_page(page);
 		}
-		mutex_unlock(&mem_mutex);
+		dmutex_unlock(&mem_mutex);
 		if(kthread_should_stop()) {
-			LOG(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> done\n");
+			LOG(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> terminated\n");
 			do_exit(0);
 		}
 
 	}
 
 
-	LOG(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> finito\n");
+	LOG(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> done\n");
 
 	return 0;
 }
@@ -380,6 +438,7 @@ int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 	unsigned int myoff=((long unsigned int)vmf->virtual_address-vma->vm_start+vmf->pgoff)/PAGE_SIZE;
 #endif
 	struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
+	
 	lock_page(vmf->page);
 	
 	//info->page=vmf->page;
@@ -390,6 +449,7 @@ int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 #else
 	LOG("page_mkwrite flags:%x pgoff:%d page:%p\n",vmf->flags,myoff,vmf->page);
 #endif
+	//dmutex_lock(&mem_mutex);
 	// let's see if it's already there
 	for (index = info->dirt_pages; (*index >=0)  && (myoff!=*index) ; index++)
 	{
@@ -401,10 +461,12 @@ int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 		}
 	}
 	*index=myoff;
+	dmutex_unlock(&mem_mutex);
 	LOG("index=%d %d\n",*index,myoff);
 
 	//LOG("unlocking \n");
-	mutex_unlock(&etx_mutex);
+	dmutex_unlock(&etx_mutex);
+	
 	//schedule_delayed_work(&info->deferred_work, 1);
 
 
@@ -496,7 +558,7 @@ int mmapfop_close(struct inode *inode, struct file *filp)
 
 	if (info->reference==0)
 	{
-		mutex_unlock(&etx_mutex);
+		dmutex_unlock(&etx_mutex);
 		if(!kthread_stop(thread1))
 			LOG(KERN_INFO "Thread stopped\n");
 
@@ -539,6 +601,7 @@ int memory_map (struct file * file, struct vm_area_struct * vma)
 
 	vma->vm_private_data = file->private_data;
 	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+	file->f_mapping->a_ops = &fb_deferred_io_aops;
 
 
 /*
@@ -575,10 +638,10 @@ int mmap_ops_init(void)
 	//info->delay=0;
 
  	//INIT_DELAYED_WORK(&info->deferred_work, fb_deferred_io_work);
-	mutex_init(&mem_mutex);	
+	dmutex_init(&mem_mutex);	
 
-	mutex_init(&etx_mutex);	
-	mutex_lock(&etx_mutex);
+	dmutex_init(&etx_mutex);	
+	dmutex_lock(&etx_mutex);
 
 	
    //mutex_init(&mmap_device_mutex);
@@ -594,6 +657,7 @@ void mmap_shutdown()
 		for (i = 0; i < blocks; i++)
 		{
 			free_pages((unsigned long)infos[j]->data[i],PAGES_ORDER);	
+			free_pages((unsigned long)infos[j]->mirror[i],PAGES_ORDER);	
 		}	
 
 	}
