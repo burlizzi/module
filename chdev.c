@@ -485,6 +485,10 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
             }
 
 
+         return( 0 );
+        }
+        case IOCTL_RFM2G_SET_PIO_BYTE_SWAP:
+        {
 
          return( 0 );
         }
