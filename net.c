@@ -90,7 +90,8 @@ int sendraw(struct sk_buff *skbt)
     
 #if LINUX_VERSION_CODE > KERNEL_VERSION(5,2,0)
 retry:
-    switch(__dev_direct_xmit(skbt,0))
+    switch(dev_queue_xmit(skbt))
+//    switch(__dev_direct_xmit(skbt,0)) 
 #else    
     switch(dev_queue_xmit(skbt))
     //struct netdev_queue *txq;
@@ -103,6 +104,7 @@ retry:
 #endif    
     {
         case NET_XMIT_SUCCESS:
+            LOG("vrfm: success\n");
         break;
         case NET_XMIT_DROP:
         LOG("vrfm: tx dropped packet, retry!!\n");

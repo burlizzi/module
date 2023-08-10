@@ -174,7 +174,6 @@ struct file_operations rfm2gFOS =
 static int vrfm_driver_init(void)
 {
   printk( KERN_NOTICE "vrfm: Starting\n" );
-  proc_create("rfm2g",0666,NULL,&rfm2gFOS);
   crypt_init();
   if (mmap_ops_init())
         return -1;
@@ -182,6 +181,7 @@ static int vrfm_driver_init(void)
         return -1;
   if (net_init())
         return -1;
+  proc_create("rfm2g",0666,NULL,&rfm2gFOS);
   return 0;
 }
 

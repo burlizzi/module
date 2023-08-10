@@ -546,7 +546,7 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
                 }
                 return( -EFAULT );
             }
-            LOG("waiting for %u\n",info.Timeout);
+            //LOG("waiting for %u\n",info.Timeout);
             switch (info.Timeout)
             {
             case RFM2G_NO_WAIT:
@@ -559,7 +559,7 @@ long rfm2g_ioctl(struct file *filp, unsigned int cmd, unsigned long arg )
                 info.Timeout = schedule_timeout( info.Timeout );
                 break;
             } 
-            LOG("enough waiting %d\n",info.Timeout);
+            //LOG("enough waiting %d\n",info.Timeout);
 
         }
         

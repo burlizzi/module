@@ -1,4 +1,3 @@
-#include <linux/delay.h>
 #include <asm/pgtable_types.h>
 #include <linux/writeback.h>
 #include <linux/mm.h>
@@ -15,7 +14,6 @@
 #include <linux/moduleparam.h>
 #include <linux/dma-mapping.h>
 #include <asm/tlbflush.h>
-#include <linux/delay.h>
 
 
 #include <linux/init.h>
@@ -31,10 +29,10 @@
 #include <asm/uaccess.h>
 #include <linux/zconf.h>
 #include <linux/spinlock.h>
-#include <linux/delay.h>
 #include <linux/interrupt.h>
 #include <linux/seq_file.h>
 #include <linux/kthread.h>  // for threads
+#include <linux/delay.h>
 
 //static DEFINE_MUTEX(mmap_device_mutex);
 //struct mmap_info *info = NULL;
@@ -57,15 +55,18 @@ void dmutex_init(struct dmutex* m){
 
 
 #define  dmutex_lock(X) \
-	{if(mutex_lock_interruptible(X.m))LOG(#X" INTERRUPT %s<->%s",(X)->prev,__func__);LOG(#X" LOCK %s<->%s",(X)->prev,__func__); (X)->prev=__func__;}
+	{LOG(#X" LOCKING %s<->%s",(X)->prev,__func__);if(mutex_lock_interruptible(X.m))LOG(#X" INTERRUPT %s<->%s",(X)->prev,__func__);LOG(#X" LOCK %s<->%s",(X)->prev,__func__); (X)->prev=__func__;}
+//	{LOG(#X"LOCKING %s<->%s",(X)->prev,__func__);mutex_lock(X.m);LOG(#X" LOCK %s<->%s",(X)->prev,__func__); (X)->prev=__func__;}
+//	
 
 
 #define  dmutex_unlock(X) \
 	{mutex_unlock(X.m);{LOG(#X" UNLOCK %s<|>%s",(X)->prev,__func__);(X)->prev=__func__+1;}}
 
 
-struct dmutex etx_mutex; 
-struct dmutex mem_mutex; 
+wait_queue_head_t wait_queue_transmit;
+
+//struct dmutex mem_mutex; 
 extern int rfm_instances;
 extern char* devices[MAX_RFM2G_DEVICES];  // Major and Minor device numbers combined into 32 bits
 extern struct mmap_info* infos[MAX_RFM2G_DEVICES];
@@ -159,10 +160,29 @@ static int fb_deferred_io_set_page_dirty(struct page *page)
 {
 
 	//dmutex_lock(&mem_mutex);
+	int32_t *index;
+	struct mmap_info **i;
+
 	LOG("fb_deferred_io_set_page_dirty :%p",page);
 	if (!PageDirty(page))
 		SetPageDirty(page);
-	dmutex_unlock(&etx_mutex);
+
+	for ( i = infos; *i ; i++)
+	{
+		for ( index = (*i)->dirt_pages; *index>=0  ; index++)
+		{
+			if(page==virt_to_page((*i)->data[*index]))
+			{
+				LOG("found: %s",(*i)->name);
+				(*i)->dirty = true;
+				break;
+			}
+		}
+	}
+	
+
+	wake_up(&wait_queue_transmit);
+	//dmutex_unlock(&etx_mutex);
 	//dmutex_unlock(&mem_mutex);
 	
 	LOG("done");
@@ -292,7 +312,7 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	unsigned long offset = ((vmf->pgoff % PAGES_PER_BLOCK) << PAGE_SHIFT);
 	int block=vmf->pgoff>>PAGES_ORDER;
 	LOG("mmap_fault gfp_mask:%x pgoff:%ld flags=%x\n",vmf->gfp_mask,vmf->pgoff,vmf->flags);
-	dmutex_lock(&mem_mutex);
+	//dmutex_lock(&mem_mutex);
 	
 
 	info = (struct mmap_info *)vma->vm_private_data;
@@ -350,7 +370,7 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	vmf->page = page;
 
 	lock_page(page);
-	dmutex_unlock(&mem_mutex);
+	//dmutex_unlock(&mem_mutex);
 	return VM_FAULT_LOCKED;
 }
 
@@ -366,12 +386,12 @@ static int fb_deferred_io_work(void* ptr)
 
 	while (info->reference)
 	{
-		LOG("/\n");
 		//if(!mutex_trylock(&etx_mutex)) schedule();
-		dmutex_lock(&etx_mutex);
-		LOG("-\n");
+		wait_event_interruptible(wait_queue_transmit,  info->dirty||
+				kthread_should_stop());
+		info->dirty=false;
+		mdelay(1);
 		//dmutex_lock(&mem_mutex);
-		LOG("\\\n");
 		//LOG("XXXX %p\n",info->dirt_pages);
 		//LOG("XXXX %d\n",*info->dirt_pages);
 		for ( index = info->dirt_pages; *index>=0  ; index++)
@@ -402,7 +422,7 @@ static int fb_deferred_io_work(void* ptr)
 	
 			unlock_page(page);
 		}
-		dmutex_unlock(&mem_mutex);
+		//dmutex_unlock(&mem_mutex);
 		if(kthread_should_stop()) {
 			LOG(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> terminated\n");
 			do_exit(0);
@@ -461,11 +481,13 @@ int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 		}
 	}
 	*index=myoff;
-	dmutex_unlock(&mem_mutex);
+	//dmutex_unlock(&mem_mutex);
 	LOG("index=%d %d\n",*index,myoff);
 
 	//LOG("unlocking \n");
-	dmutex_unlock(&etx_mutex);
+	//dmutex_unlock(&etx_mutex);
+	info->dirty=true;
+	wake_up(&wait_queue_transmit);
 	
 	//schedule_delayed_work(&info->deferred_work, 1);
 
@@ -558,7 +580,9 @@ int mmapfop_close(struct inode *inode, struct file *filp)
 
 	if (info->reference==0)
 	{
-		dmutex_unlock(&etx_mutex);
+		//dmutex_unlock(&etx_mutex);
+		info->dirty=true;
+		wake_up(&wait_queue_transmit);
 		if(!kthread_stop(thread1))
 			LOG(KERN_INFO "Thread stopped\n");
 
@@ -638,10 +662,11 @@ int mmap_ops_init(void)
 	//info->delay=0;
 
  	//INIT_DELAYED_WORK(&info->deferred_work, fb_deferred_io_work);
-	dmutex_init(&mem_mutex);	
+	//dmutex_init(&mem_mutex);	
 
-	dmutex_init(&etx_mutex);	
-	dmutex_lock(&etx_mutex);
+	//dmutex_init(&etx_mutex);	
+	init_waitqueue_head(&wait_queue_transmit);
+	//dmutex_lock(&etx_mutex);
 
 	
    //mutex_init(&mmap_device_mutex);

@@ -36,7 +36,7 @@ int main (int argc, char **argv)
     int i;
     
 
-    configfd = open ("/dev/rfm2g0", O_RDWR);
+    configfd = open (argc>1?argv[1]:"/dev/rfm2g0", O_RDWR);
     if (configfd < 0)
     {
         perror ("Open call failed");
@@ -51,8 +51,10 @@ int main (int argc, char **argv)
         return -1;
     }
 
-    //FILE* log=fopen("/dev/stdout","w");
-    FILE* log=fopen("/dev/kmsg","w");
+    FILE* log=fopen("/dev/stdout","w");
+    //FILE* log=fopen("/dev/kmsg","w");
+    printf ("Changed message: %s\n", address+PAGE_SIZE*200-10);
+
 
     //memcpy (address + 11, "*user*", 6);
     //printf ("Initial message: %s\n", address);
@@ -62,68 +64,22 @@ int main (int argc, char **argv)
     int temp;
     clock_gettime(CLOCK_MONOTONIC, &time1);
     char xx=0;
-    if (argc==2 && strcmp(argv[1],"-s")==0)
-    {
-        while(1)
-        {
-            if(address[1]!=address[2])
-                address[2]=address[1];
-        }
-    }
 
 
   
-
-
-    printf ("Changed message: %p %s\n", address, address);
-    fprintf (log,"1\n");
-    fflush(log);
-    sleep(1);
-   // for (i = 0; i < 100000000   ; i++)
+    for (size_t i = 0; i < 100000000; i++)
     {
-        printf ("Changed message: %p %s\n", address, address);
-        sleep(1);
-    //    memcpy (address , "user", 6);
-
+        //printf(".");
+        address[rand()%134728]='0'+i;
+        //usleep(1000000);
     }
+    return 0;
 
-    fprintf (log,"a\n");
-    fflush(log);
-    memcpy (address , S("AAAAAAAAAAAAAAAAAA"));
-    sleep(1);
-    fprintf (log,"b\n");
-    fflush(log);
-    memcpy (address +10, S("bbbbbbbbbbbbbbb"));
-    sleep(1);
-    fprintf (log,"c\n");
-    fflush(log);
-    memcpy (address+20 , S("ccccccccccccccc"));
-    sleep(1);
-//    mlock(address,PAGE_SIZE);
-    printf ("Changed message: %s\n", address);
-    fprintf (log,"2\n");
-    fflush(log);
-    memcpy (address , S("ciao"));
-    fprintf (log,"3\n");
-    fflush(log);
-    //sleep(1);
-    //sleep(1);
-    fprintf (log,"--------------------cross page----------------------------------\n");
-    fflush(log);
-    memcpy (address + PAGE_SIZE*45-10, S("Hello from *user* this is file:"));
-    //memcpy (address + 11, "*mio**", 6);
-    sleep(1);
-
-    fprintf (log,"--------------------cross page again----------------------------------\n");
-    memcpy (address + PAGE_SIZE*45-10, S("Hello from *again* this is file:"));
-    printf ("Changed message: %s\n", address);
     //sleep(5);
     //sleep(1);
-    printf ("Changed message: %s\n", address+PAGE_SIZE*45-10);
-    //sleep(1);
     munmap(address,PAGE_SIZE*400);
-    close (configfd);
+    //close (configfd);
     //sleep(1);
-  
+ /* */
     return 0;
 }
