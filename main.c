@@ -5,11 +5,13 @@
 #include "net.h"
 #include "mmap.h"
 #include "crypt.h"
+#include "rfm2g_types.h"
 
 #include <linux/proc_fs.h>
 #include <linux/version.h>
 #include <linux/seq_file.h>
-#include "rfm2g_types.h"
+#include <linux/netdevice.h>
+
 
 
 MODULE_DESCRIPTION("Virtual Reflective Memory Linux driver");
@@ -20,109 +22,57 @@ MODULE_SOFTDEP("e1000e");
 MODULE_IMPORT_NS(CRYPTO_INTERNAL);
 #endif
 
+#define VALUE(string) #string
+#define TO_LITERAL(string) VALUE(string)
 
 extern int rfm_instances;
+extern char* devices[MAX_RFM2G_DEVICES];
+extern struct net_device* dev_eth[MAX_RFM2G_DEVICES];
 RFM2G_INT32
 RFM2gReadProcPage( char *buf, char **start, off_t offset, int len, int *unused,
                   void *data_unused)
 {
     //static char *me = "RFM2GReadProcPage()";
     RFM2G_INT32 bytesRead = 0;  /* Returned length                        */
-    //RFM2G_INT32 i;              /* Loop variable                          */
+    RFM2G_INT32 i;              /* Loop variable                          */
     //char device_num[10];        /* Indicates minor number in text message */
     //RFM2G_INT32 j;              /* Loop variable                          */
 
     //WHENDEBUG(RFM2G_DBTRACE) LOG(KERN_ERR"%s: Entering %s\n", devname, me);
 
-    bytesRead = sprintf( buf, "\nWelcome to the RFM2G proc page!\n\n" );
+    bytesRead += sprintf( buf+bytesRead, "\nWelcome to the RFM2G proc page!\n\n" );
     if( bytesRead > PAGE_SIZE-80 ) return( bytesRead ); /* This is enough! */
 
-    bytesRead = sprintf( buf, "COPYRIGHT NOTICE\n" );
-    if( bytesRead > PAGE_SIZE-80 ) return( bytesRead ); /* This is enough! */
+    // bytesRead += sprintf( buf+bytesRead, "COPYRIGHT NOTICE\n" );
+    // if( bytesRead > PAGE_SIZE-80 ) return( bytesRead ); /* This is enough! */
 
-    bytesRead = sprintf( buf, "Copyright (C) 2002 VMIC\n" );
-    if( bytesRead > PAGE_SIZE-80 ) return( bytesRead ); /* This is enough! */
+    // bytesRead += sprintf( buf+bytesRead, "Copyright (C) 2002 VMIC\n" );
+    // if( bytesRead > PAGE_SIZE-80 ) return( bytesRead ); /* This is enough! */
 
-    bytesRead = sprintf( buf, "International Copyright Secured.  All Rights Reserved.\n" );
-    if( bytesRead > PAGE_SIZE-80 ) return( bytesRead ); /* This is enough! */
+    // bytesRead += sprintf( buf+bytesRead, "International Copyright Secured.  All Rights Reserved.\n" );
+    // if( bytesRead > PAGE_SIZE-80 ) return( bytesRead ); /* This is enough! */
 
-    //bytesRead += sprintf( buf+bytesRead, "MODULE_NAME                %s\n",
-     //   devname );
+    bytesRead += sprintf( buf+bytesRead, "MODULE_NAME                " TO_LITERAL(MODULE_NAME)"\n");
     if( bytesRead > PAGE_SIZE-80 ) return( bytesRead ); /* This is enough! */
 
     bytesRead += sprintf( buf+bytesRead, "RFM2G_DEVICE_COUNT         %d\n\n",
         rfm_instances );
     if( bytesRead > PAGE_SIZE-80 ) return( bytesRead ); /* This is enough! */
 
-    /* Show the contents of the RFM2GDEVICEINFO structures 
-    for( i=0; i<rfm2g_device_count; i++ )
+    // Show the contents of the RFM2GDEVICEINFO structures 
+    for( i=0; i<rfm_instances; i++ )
     {
-        sprintf( device_num, "DEVICE_%d", i );
+        //sprintf( device_num, "DEVICE_%d", i );
 
-        bytesRead += sprintf( buf+bytesRead, "%s_BUS               %d\n",
-            device_num, (int) rfm2gDeviceInfo[i].Config.PCI.bus );
+        bytesRead += sprintf( buf+bytesRead, "%s_BUS               %s\n",
+            devices[i], dev_eth[i]->name );
 
-        bytesRead += sprintf( buf+bytesRead, "%s_FUNCTION          %d\n",
-            device_num, (int) rfm2gDeviceInfo[i].Config.PCI.function );
-
-        bytesRead += sprintf( buf+bytesRead, "%s_DEVFN             0x%08X\n",
-            device_num, (int) rfm2gDeviceInfo[i].Config.PCI.devfn );
-
-        bytesRead += sprintf( buf+bytesRead, "%s_TYPE              0x%04X\n",
-            device_num, (int) rfm2gDeviceInfo[i].Config.PCI.type );
-
-        bytesRead += sprintf( buf+bytesRead, "%s_REVISION          %d\n",
-            device_num, (int) rfm2gDeviceInfo[i].Config.PCI.revision );
-
-        bytesRead += sprintf( buf+bytesRead, "%s_OR_REGISTER_BASE  0x%08X\n",
-            device_num, (int) rfm2gDeviceInfo[i].Config.PCI.rfm2gOrBase );
-
-        bytesRead += sprintf( buf+bytesRead, "%s_OR_REGISTER_SIZE  %d\n",
-            device_num,
-            (int) rfm2gDeviceInfo[i].Config.PCI.rfm2gOrWindowSize );
-
-        bytesRead += sprintf( buf+bytesRead, "%s_CS_REGISTER_BASE  0x%08X\n",
-            device_num, (int) rfm2gDeviceInfo[i].Config.PCI.rfm2gCsBase );
-
-        bytesRead += sprintf( buf+bytesRead, "%s_CS_REGISTER_SIZE  %d\n",
-            device_num,
-            (int) rfm2gDeviceInfo[i].Config.PCI.rfm2gCsWindowSize );
-
-        bytesRead += sprintf( buf+bytesRead, "%s_MEMORY_BASE       0x%08X\n",
-            device_num, (int) rfm2gDeviceInfo[i].Config.PCI.rfm2gBase );
-
-        bytesRead += sprintf( buf+bytesRead, "%s_MEMORY_SIZE       %d\n",
-            device_num, (int) rfm2gDeviceInfo[i].Config.MemorySize );
-
-        bytesRead += sprintf( buf+bytesRead, "%s_INTERRUPT         %d\n",
-            device_num,
-            (int) rfm2gDeviceInfo[i].Config.PCI.interruptNumber );
-
-        bytesRead += sprintf( buf+bytesRead, "rfm2gDebugFlags            0x%08X\n",
-            rfm2gDebugFlags);
-
-        bytesRead += sprintf( buf+bytesRead, "RFM Flags                  0x%08X\n",
-            rfm2gDeviceInfo[i].Flags);
-
-        bytesRead += sprintf( buf+bytesRead, "Capability Flags           0x%08X\n",
-            rfm2gDeviceInfo[i].Config.Capabilities);
-
-        bytesRead += sprintf( buf+bytesRead, "Instance counter           %d\n",
-            rfm2gDeviceInfo[i].Instance);
-
-        bytesRead += sprintf( buf+bytesRead, "Queue Flags = " );
-
-        for(j=0; j<RFM2GEVENT_LAST; j++)
-        {
-            bytesRead += sprintf( buf+bytesRead, "0x%02X  ",
-                rfm2gDeviceInfo[i].EventQueue[j].req_header.reqh_flags);
-        }
 
         bytesRead += sprintf( buf+bytesRead, "\n" );
 
         if( bytesRead > PAGE_SIZE-80 ) return( bytesRead );
     }
-*/
+/**/
     //WHENDEBUG(RFM2G_DBTRACE) LOG(KERN_ERR"%s: Exiting %s\n", devname, me);
 
     return( bytesRead );
@@ -171,32 +121,52 @@ struct file_operations rfm2gFOS =
 };
 
 #endif
+
+int stage=0;
+static void vrfm_driver_exit(void)
+{
+    if (stage>=5)
+        remove_proc_entry("rfm2g", NULL);
+
+    printk( KERN_NOTICE "vrfm: terminating\n" );
+    if (stage>=4)
+        net_shutdown();
+    printk( KERN_NOTICE "vrfm: net shutdown\n" );
+    if (stage>=3)
+        chdev_shutdown();
+    printk( KERN_NOTICE "vrfm: chdev_shutdown\n" );
+    if (stage>=2)
+        mmap_shutdown();
+    printk( KERN_NOTICE "vrfm: mmap_shutdown\n" );
+    crypt_done();
+    printk( KERN_NOTICE "vrfm: done\n" );
+}
+
+
 static int vrfm_driver_init(void)
 {
   printk( KERN_NOTICE "vrfm: Starting\n" );
   crypt_init();
+  stage=1;
   if (mmap_ops_init())
-        return -1;
+        goto cleanup;
+  stage=2;
   if (chdev_init())
-        return -1;
+        goto cleanup;
+  stage=3;
   if (net_init())
-        return -1;
+        goto cleanup;
+  stage=4;
   proc_create("rfm2g",0666,NULL,&rfm2gFOS);
+  stage=5;
   return 0;
+cleanup:
+    printk( KERN_ERR "vrfm: error during initialization\n" );
+    vrfm_driver_exit();
+    return -1;
 }
 
 /*===============================================================================================*/
-static void vrfm_driver_exit(void)
-{
-    remove_proc_entry("rfm2g", NULL);
-
-    printk( KERN_NOTICE "vrfm: terminating\n" );
-    net_shutdown();
-    chdev_shutdown();
-    mmap_shutdown();
-    crypt_done();
-    printk( KERN_NOTICE "vrfm: done\n" );
-}
 
 /*===============================================================================================*/
 module_init(vrfm_driver_init);

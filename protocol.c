@@ -54,6 +54,7 @@ memcmpr (const void *__s1, const void *__s2, size_t __n)
 
 void dump(unsigned char* A,int offset)
 {
+    /*
     size_t i;
     size_t j;
     bool previous=1;
@@ -76,7 +77,7 @@ void dump(unsigned char* A,int offset)
 
         }
 
-    LOG(KERN_INFO "%d<<<<",offset);
+    LOG(KERN_INFO "%d<<<<",offset);*/
 }
 
 int transmitPage(struct mmap_info* info,unsigned int offset   )

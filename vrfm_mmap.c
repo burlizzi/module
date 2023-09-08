@@ -37,7 +37,7 @@
 //static DEFINE_MUTEX(mmap_device_mutex);
 //struct mmap_info *info = NULL;
 
-static struct task_struct *thread1;
+
 
 struct dmutex
 {
@@ -189,11 +189,6 @@ static int fb_deferred_io_set_page_dirty(struct page *page)
 	return 0;
 }
 
-static int test_write_end(struct file * file, struct address_space *mapping, loff_t pos, unsigned len, unsigned copied, struct page *page, void *fsdata)
-{
-	LOG("write_end :%p pos:%lld len:%d ",page,pos,len);
-	return 0;
-}
 
 int write_begin(struct file *file, struct address_space *mapping,
 				   loff_t pos, unsigned len, unsigned flags,
@@ -254,17 +249,20 @@ int mmap_open(struct inode *inode, struct file *filp)
 	//info->inode=inode;
 	
 	filp->private_data = info;    
+	printk("mmap_open1 reference %d -- %s\n",info->reference,info->name);
+
+
+	if (info->reference == 0)
+	{
+		info->thread = kthread_create(fb_deferred_io_work,info,"thread");
+		if((info->thread))
+			{
+			LOG(KERN_INFO "in if\n");
+			wake_up_process(info->thread);
+			}
+
+	}
 	info->reference++;
-	LOG("mmap_open1 %d\n",info->reference);
-
-
-
-	thread1 = kthread_create(fb_deferred_io_work,info,"thread");
-    if((thread1))
-        {
-        LOG(KERN_INFO "in if\n");
-        wake_up_process(thread1);
-        }
 
     return 0;
 }
@@ -309,7 +307,7 @@ static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 // SEE:/usr/src/linux-4.1.39-56/drivers/net/appletalk/ltpc.c:1133
 
     
-	unsigned long offset = ((vmf->pgoff % PAGES_PER_BLOCK) << PAGE_SHIFT);
+	//unsigned long offset = ((vmf->pgoff % PAGES_PER_BLOCK) << PAGE_SHIFT);
 	int block=vmf->pgoff>>PAGES_ORDER;
 	LOG("mmap_fault gfp_mask:%x pgoff:%ld flags=%x\n",vmf->gfp_mask,vmf->pgoff,vmf->flags);
 	//dmutex_lock(&mem_mutex);
@@ -402,10 +400,10 @@ static int fb_deferred_io_work(void* ptr)
 				continue;
 			}
 			page=virt_to_page(info->data[*index]);
-			LOG("pre page %d\n",*index);
+			//LOG("pre page %d\n",*index);
 			lock_page(page);
 
-			LOG("page %d\n",*index);
+			//LOG("page %d\n",*index);
 			if (PageDirty(page))
 			{
 				ktime_t time1;
@@ -498,14 +496,6 @@ int page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf)
 }
 
 
-int access(struct vm_area_struct *vma, unsigned long addr,
-		      void *buf, int len, int write)
-{
-	
-	LOG("ACCESS!!!!!!!!!!!!!!!!!!!!!!! addr:%lx buf:%p len:%d write:%d flags:%lx\n ",addr,buf,len,write,vma->vm_flags);
-	return 0;
-}
-
 void map_pages(struct vm_area_struct *vma, struct vm_fault *vmf)
 {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0))	
@@ -558,9 +548,6 @@ struct vm_operations_struct mmap_vm_ops = {
 	.fault = mmap_fault,
 	//.map_pages = map_pages,
 	.page_mkwrite = page_mkwrite,
-#ifdef CONFIG_HAVE_IOREMAP_PROT
-	.access = access, //TODO:/home/bulu101/linux-4.1.39-56/mm/memory.c:3616   /usr/src/linux/drivers/char/mem.c:317
-#endif	
 #ifdef CONFIG_NUMA
 	.set_policy	= set_policy,
 	.get_policy	= get_policy,
@@ -573,21 +560,33 @@ struct vm_operations_struct mmap_vm_ops = {
 
 int mmapfop_close(struct inode *inode, struct file *filp)
 {
+	int err=0;
 	struct mmap_info *info = (struct mmap_info *)filp->private_data;
 	info->reference--;
 
-	LOG("mmapfop_close %d -- %s\n",info->reference,info->name);
+	printk("mmapfop_close reference %d -- %s\n",info->reference,info->name);
 
 	if (info->reference==0)
 	{
 		//dmutex_unlock(&etx_mutex);
 		info->dirty=true;
-		wake_up(&wait_queue_transmit);
-		if(!kthread_stop(thread1))
-			LOG(KERN_INFO "Thread stopped\n");
-
+		//wake_up(&wait_queue_transmit);
+	    printk( KERN_ERR "vrfm: stopping thread\n" );
+		if((info->thread))
+		{
+		    printk( KERN_ERR "vrfm: thread true\n" );
+			err=kthread_stop(info->thread);
+			if(err)
+			{
+				printk(KERN_INFO "Thread stop error %d\n",err);
+			}
+			else
+			{
+				LOG(KERN_INFO "Thread stopped\n");
+			}
+			info->thread=NULL;
+		}
 	}
-
 	//  cancel_delayed_work(&info->deferred_work);
 
 	return 0;

@@ -4,7 +4,6 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**",
-                //"/usr/src/linux-4.1.39-56-obj/x86_64/pv/arch/x86/include/generated",
                 "/usr/src/linux/include",
                 "/usr/src/linux-obj/x86_64/default/include",
                 "/usr/src/linux/arch/x86/include"
@@ -18,7 +17,8 @@
                 "-D__KERNEL__ ",
                 "-DMAP_SIZE=1000",
                 "-DKBUILD_MODNAME"
-            ]
+            ],
+            "configurationProvider": "ms-vscode.cmake-tools"
         }
     ],
     "version": 4

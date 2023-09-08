@@ -53,14 +53,12 @@ $(BUILD_DIR_MAKEFILE): $(BUILD_DIR) $(MOD_OUTPUT_DIR)
 default: module
 
 clean:
-	KCPPFLAGS=" -DMODULE_NAME=$(MODULE_NAME)" make -C $(BUILD_DIR) M=$(MOD_OUTPUT_DIR) src=$(PWD) clean
 	rm $(BUILD_DIR_MAKEFILE)
 	rm bin/test
 
 
 install: all
-	KCPPFLAGS=" -DMODULE_NAME=$(MODULE_NAME) -DMAP_SIZE=$(MAP_SIZE)" make -C $(BUILD_DIR)   M=$(MOD_OUTPUT_DIR) src=$(PWD) CC=${CC} modules
-	@sudo insmod $(MOD_OUTPUT_DIR)/$(MODULE_NAME).ko netdevice=lo debug=0 rfmdevice=rfm2g0
+	@sudo insmod $(MOD_OUTPUT_DIR)/$(MODULE_NAME).ko netdevice=dummy0,lo debug=0 rfmdevice=rfm2g1,rfm2g0
 	
 
 uninstall:

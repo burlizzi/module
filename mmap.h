@@ -15,6 +15,7 @@ struct mmap_info {
 	int32_t dirt_pages[MAP_SIZE/PAGE_SIZE];
 	int index;
 	bool dirty;
+	struct task_struct *thread;
 };
 //extern char** blocks_array;
 extern int blocks;
