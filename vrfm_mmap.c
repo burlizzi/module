@@ -673,13 +673,26 @@ int mmap_ops_init(void)
 }
 void mmap_shutdown()
 {
-	size_t i,j;
+	unsigned int i,j;
+	struct page* page;
 	int blocks=size/PAGE_SIZE/PAGES_PER_BLOCK;
 
 	for (j = 0; j < rfm_instances; j++)
 	{
 		for (i = 0; i < blocks; i++)
 		{
+			if ((unsigned long)infos[j]->data[i])
+			{
+				page=virt_to_page((unsigned long)infos[j]->data[i]);
+				if (page)
+					page->mapping = NULL;
+			if ((unsigned long)infos[j]->mirror[i])
+			{
+				page=virt_to_page((unsigned long)infos[j]->mirror[i]);
+				if (page)
+					page->mapping = NULL;
+			}
+
 			free_pages((unsigned long)infos[j]->data[i],PAGES_ORDER);	
 			free_pages((unsigned long)infos[j]->mirror[i],PAGES_ORDER);	
 		}	
