@@ -18,6 +18,7 @@ jobs:
         - image: debian
         - image: opensuse/leap
         - image: opensuse/tumbleweed
+        - image: redhat/ubi9-micro
     container: ${{matrix.vector.image}}
     steps:
       - uses: actions/checkout@v3
