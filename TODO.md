@@ -9,3 +9,4 @@
 * ALREADY DONE???? https://docs.nvidia.com/cuda/gpudirect-rdma/index.html#nvidia-peermem >>>>>> https://github.com/NVIDIA/open-gpu-kernel-modules/blob/main/kernel-open/nvidia-peermem/nvidia-peermem.c
     * makes no sense, it would need an nvidia card anyway (and probably Mellanox OFED card too)
 * try to use network card dma directly
+* uso in docker: https://docs.docker.com/storage/volumes/#share-data-between-machines
